@@ -8,11 +8,15 @@ from retrievers.similarity_retriever import similarity_search_with_scores
 from retrievers.mmr_retriever import mmr_search_documents
 from retrievers.multi_query_retriever import multi_query_search
 from retrievers.self_query_retriever import self_query_search
+from retrievers.parent_doc_retriever import ContractParentDocumentRetriever
 from ui.components import render_header, render_metadata_card, render_retrieved_chunks
 
-# Initialize VectorStore Manager (cached in session state)
+# Initialize VectorStore Managers (cached in session state)
 if "vector_manager" not in st.session_state:
     st.session_state.vector_manager = ContractVectorStoreManager(collection_name="contractclaw_similarity")
+
+if "parent_retriever" not in st.session_state:
+    st.session_state.parent_retriever = ContractParentDocumentRetriever(collection_name="contractclaw_parent_doc")
 
 def main():
     render_header()
@@ -27,9 +31,10 @@ def main():
             "MMR (Diversity Mode)",
             "Multi-Query Retriever (AI Query Expansion)",
             "Self-Query Retriever (Smart Metadata Filters)",
+            "Parent Document Retriever (Small-to-Big)",
             "Side-by-Side Comparison (Similarity vs MMR)"
         ],
-        help="Self-Query Retriever extracts structured metadata filters (like contract_type == 'NDA') from natural language queries."
+        help="Parent Document Retriever embeds small child chunks (400 chars) for search accuracy while returning full parent chunks (2000 chars) for complete context."
     )
     
     # Sidebar Controls
@@ -44,6 +49,14 @@ def main():
             value=0.5,
             step=0.1,
             help="1.0 = Pure Similarity | 0.0 = Pure Diversity"
+        )
+
+    full_context_mode = True
+    if "Parent Document" in search_mode:
+        full_context_mode = st.sidebar.toggle(
+            "Full Context Mode (Parent Chunks):",
+            value=True,
+            help="ON = Returns full 2000-char Parent section | OFF = Returns 400-char Child snippet"
         )
     
     # Input Selection: Sample or Upload
@@ -80,17 +93,20 @@ def main():
     if selected_text:
         render_metadata_card(selected_metadata)
         
-        # Automatically Index into ChromaDB
+        # Index into Base Vector Store
         v_manager = st.session_state.vector_manager
+        parent_retriever = st.session_state.parent_retriever
+        
         with st.spinner("Indexing contract into ChromaDB vector store..."):
             chunks = v_manager.index_document(selected_text, selected_metadata)
+            num_parents, num_children = parent_retriever.index_document(selected_text, selected_metadata)
         
-        st.success(f"Indexed {len(chunks)} chunks into vector collection `{v_manager.collection_name}`.")
+        st.success(f"Indexed {len(chunks)} base chunks | Parent-Doc Store: {num_parents} Parents (2000c) & {num_children} Children (400c).")
         
         st.markdown("---")
         st.subheader("🔍 Query Contract Lab")
         
-        default_query = "Find only NDA confidentiality obligations" if "Self-Query" in search_mode else "What is the termination clause?"
+        default_query = "Explain the termination clause and obligations" if "Parent Document" in search_mode else "What is the termination clause?"
         user_query = st.text_input("Ask a question about this contract:", default_query)
         
         if user_query:
@@ -132,6 +148,15 @@ def main():
                         st.json(filter_dict if filter_dict else {"status": "No metadata filter required"})
                 
                 render_retrieved_chunks(sq_docs, retriever_name="Self-Query Retriever")
+
+            elif search_mode == "Parent Document Retriever (Small-to-Big)":
+                p_docs = parent_retriever.retrieve(user_query, k=k_slider, full_context=full_context_mode)
+                mode_label = "Parent Full Section Context (2000 chars)" if full_context_mode else "Child Snippet (400 chars)"
+                
+                with st.expander("🧩 Parent Document Architecture Inspection", expanded=True):
+                    st.info(f"**Current Mode:** `{mode_label}` | **Retrieved Documents:** `{len(p_docs)}`")
+                
+                render_retrieved_chunks(p_docs, retriever_name=f"Parent Document ({mode_label})")
 
             elif search_mode == "Side-by-Side Comparison (Similarity vs MMR)":
                 st.subheader("⚖️ Side-by-Side Retriever Comparison")
