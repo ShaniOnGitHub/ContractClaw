@@ -1,0 +1,27 @@
+# Cursor & Agent Development Rules - ContractClaw
+
+## Project Identity
+ContractClaw is an educational Streamlit web application for contract analysis built to teach LangChain retrieval techniques interactively.
+
+## Rules & Directives
+1. **Teaching Protocol:**
+   - BEFORE writing code for any module, explain the core concepts, math/logic behind the retriever, and why it is useful in contract analysis.
+   - Wait for user confirmation before proceeding to code implementation or next modules.
+
+2. **Tech Stack Constraints:**
+   - Python 3.11+
+   - Framework: Streamlit
+   - Vector Store: ChromaDB (Local persistent instance)
+   - Chunking Sizes: Parent = 2000 chars, Child = 400 chars
+   - Embeddings: OpenAI `text-embedding-3-small` (or compatible HuggingFace fallback)
+
+3. **Metadata Schema Enforcement:**
+   All processed contract documents must include the following metadata keys:
+   - `contract_type`: NDA, Employment, SOW, Service Agreement, or Other
+   - `upload_date`: ISO format date string (YYYY-MM-DD)
+   - `filename`: String name of source file
+   - `parties`: Involved party names extracted from document
+
+4. **Code Quality & UI Standard:**
+   - Use modular Python architecture (`utils/`, `retrievers/`, `ui/`).
+   - Deliver modern, clean Streamlit UI with interactive retriever comparison labs.
