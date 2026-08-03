@@ -6,6 +6,7 @@ from utils.pdf_parser import extract_pdf_text_and_metadata
 from retrievers.base_retriever import ContractVectorStoreManager
 from retrievers.similarity_retriever import similarity_search_with_scores
 from retrievers.mmr_retriever import mmr_search_documents
+from retrievers.multi_query_retriever import multi_query_search
 from ui.components import render_header, render_metadata_card, render_retrieved_chunks
 
 # Initialize VectorStore Manager (cached in session state)
@@ -20,8 +21,13 @@ def main():
     # Mode Selection Dropdown
     search_mode = st.sidebar.selectbox(
         "Search Mode:",
-        ["Similarity Search", "MMR (Diversity Mode)", "Side-by-Side Comparison (Similarity vs MMR)"],
-        help="MMR (Maximal Marginal Relevance) balances query relevance against result diversity."
+        [
+            "Similarity Search",
+            "MMR (Diversity Mode)",
+            "Multi-Query Retriever (AI Query Expansion)",
+            "Side-by-Side Comparison (Similarity vs MMR)"
+        ],
+        help="Multi-Query Retriever uses an LLM to generate multiple legal query variations to cast a wider search net."
     )
     
     # Sidebar Controls
@@ -35,7 +41,7 @@ def main():
             max_value=1.0,
             value=0.5,
             step=0.1,
-            help="1.0 = Pure Similarity (Redundant) | 0.0 = Pure Diversity (Varied)"
+            help="1.0 = Pure Similarity | 0.0 = Pure Diversity"
         )
     
     # Input Selection: Sample or Upload
@@ -82,7 +88,7 @@ def main():
         st.markdown("---")
         st.subheader("🔍 Query Contract Lab")
         
-        default_query = "What are the risks, restrictions, and obligations in this contract?"
+        default_query = "Is this contract fair and balanced?" if "Multi-Query" in search_mode else "What is the termination clause?"
         user_query = st.text_input("Ask a question about this contract:", default_query)
         
         if user_query:
@@ -98,14 +104,25 @@ def main():
                 mmr_docs = mmr_search_documents(vector_store, user_query, k=k_slider, lambda_mult=lambda_mult)
                 render_retrieved_chunks(mmr_docs, retriever_name=f"MMR (Diversity λ={lambda_mult})")
                 
+            elif search_mode == "Multi-Query Retriever (AI Query Expansion)":
+                with st.spinner("LLM generating multi-angle query variations..."):
+                    mq_docs, query_variations = multi_query_search(vector_store, user_query, k=k_slider)
+                
+                with st.expander("🧠 AI Generated Query Variations (Multi-Query Expansion)", expanded=True):
+                    st.markdown("**Original User Query:**")
+                    st.code(user_query)
+                    st.markdown("**LLM Generated Legal Perspectives:**")
+                    for idx, q_var in enumerate(query_variations, 1):
+                        st.markdown(f"{idx}. `{q_var}`")
+                
+                render_retrieved_chunks(mq_docs, retriever_name="Multi-Query Retriever")
+                
             elif search_mode == "Side-by-Side Comparison (Similarity vs MMR)":
                 st.subheader("⚖️ Side-by-Side Retriever Comparison")
-                
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.markdown("### 🔵 Standard Similarity Search")
-                    st.caption("Focuses purely on highest vector similarity scores (can be redundant).")
                     sim_results = similarity_search_with_scores(vector_store, user_query, k=k_slider)
                     sim_docs = [doc for doc, score in sim_results]
                     sim_scores = [score for doc, score in sim_results]
@@ -113,7 +130,6 @@ def main():
                     
                 with col2:
                     st.markdown(f"### 🟢 MMR Diversity Mode (λ={lambda_mult})")
-                    st.caption("Penalizes redundancy to return diverse contractual clauses.")
                     mmr_docs = mmr_search_documents(vector_store, user_query, k=k_slider, lambda_mult=lambda_mult)
                     render_retrieved_chunks(mmr_docs, retriever_name=f"MMR (λ={lambda_mult})")
     else:
