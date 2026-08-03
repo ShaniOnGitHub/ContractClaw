@@ -7,6 +7,7 @@ from retrievers.base_retriever import ContractVectorStoreManager
 from retrievers.similarity_retriever import similarity_search_with_scores
 from retrievers.mmr_retriever import mmr_search_documents
 from retrievers.multi_query_retriever import multi_query_search
+from retrievers.self_query_retriever import self_query_search
 from ui.components import render_header, render_metadata_card, render_retrieved_chunks
 
 # Initialize VectorStore Manager (cached in session state)
@@ -25,9 +26,10 @@ def main():
             "Similarity Search",
             "MMR (Diversity Mode)",
             "Multi-Query Retriever (AI Query Expansion)",
+            "Self-Query Retriever (Smart Metadata Filters)",
             "Side-by-Side Comparison (Similarity vs MMR)"
         ],
-        help="Multi-Query Retriever uses an LLM to generate multiple legal query variations to cast a wider search net."
+        help="Self-Query Retriever extracts structured metadata filters (like contract_type == 'NDA') from natural language queries."
     )
     
     # Sidebar Controls
@@ -88,7 +90,7 @@ def main():
         st.markdown("---")
         st.subheader("🔍 Query Contract Lab")
         
-        default_query = "Is this contract fair and balanced?" if "Multi-Query" in search_mode else "What is the termination clause?"
+        default_query = "Find only NDA confidentiality obligations" if "Self-Query" in search_mode else "What is the termination clause?"
         user_query = st.text_input("Ask a question about this contract:", default_query)
         
         if user_query:
@@ -117,6 +119,20 @@ def main():
                 
                 render_retrieved_chunks(mq_docs, retriever_name="Multi-Query Retriever")
                 
+            elif search_mode == "Self-Query Retriever (Smart Metadata Filters)":
+                sq_docs, filter_dict, semantic_q = self_query_search(vector_store, user_query, k=k_slider)
+                
+                with st.expander("🏷️ Extracted Smart Metadata Filters (Self-Query Parsing)", expanded=True):
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.markdown("**Extracted Semantic Search Terms:**")
+                        st.code(semantic_q if semantic_q else "(Empty - pure filter)")
+                    with col_b:
+                        st.markdown("**Extracted Metadata Filter Rules:**")
+                        st.json(filter_dict if filter_dict else {"status": "No metadata filter required"})
+                
+                render_retrieved_chunks(sq_docs, retriever_name="Self-Query Retriever")
+
             elif search_mode == "Side-by-Side Comparison (Similarity vs MMR)":
                 st.subheader("⚖️ Side-by-Side Retriever Comparison")
                 col1, col2 = st.columns(2)

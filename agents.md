@@ -58,7 +58,7 @@ contractclaw/
 - [x] **Module 2:** Standard Similarity Search Retriever (Concepts & Code)
 - [x] **Module 3:** Maximal Marginal Relevance (MMR) Retriever (Concepts & Code)
 - [x] **Module 4:** Multi-Query Retriever (Concepts & Code)
-- [ ] **Module 5:** Self-Query Retriever with Metadata Filtering (Concepts & Code)
+- [x] **Module 5:** Self-Query Retriever with Metadata Filtering (Concepts & Code)
 - [ ] **Module 6:** Parent Document Retriever (Small-to-Big Retrieval) (Concepts & Code)
 - [ ] **Module 7:** Master Streamlit UI Integration & Interactive Labs
 - [ ] **Module 8:** Monetization Hooks, Export Reports & Deployment Readiness
