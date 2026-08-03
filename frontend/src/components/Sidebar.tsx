@@ -1,117 +1,87 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  UploadCloud, 
-  History, 
-  GitCompare, 
-  Settings, 
-  ShieldCheck, 
-  ChevronLeft, 
-  ChevronRight,
-  Sparkles,
-  Search,
-  UserCheck
+import {
+  LayoutDashboard, FileText, UploadCloud, Search,
+  History, GitCompare, Settings, ShieldCheck,
+  ChevronLeft, ChevronRight, Sparkles, UserCheck
 } from 'lucide-react';
 
-interface SidebarProps {
-  userRole?: 'admin' | 'reviewer' | 'viewer';
-}
+interface SidebarProps { userRole?: 'admin' | 'reviewer' | 'viewer'; }
 
 export const Sidebar: React.FC<SidebarProps> = ({ userRole = 'admin' }) => {
   const [collapsed, setCollapsed] = useState(false);
 
-  const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/contracts', label: 'Contracts List', icon: FileText },
-    { path: '/upload', label: 'Upload Contract', icon: UploadCloud },
-    { path: '/analysis', label: 'Clause Analysis', icon: Search },
-    { path: '/history', label: 'Contract History', icon: History },
-    { path: '/compare', label: 'Version Diffing', icon: GitCompare },
-    { path: '/settings', label: 'Settings', icon: Settings },
+  const nav = [
+    { to: '/dashboard', label: 'Dashboard',        icon: LayoutDashboard },
+    { to: '/contracts', label: 'Contracts',         icon: FileText },
+    { to: '/upload',    label: 'Upload',            icon: UploadCloud },
+    { to: '/analysis',  label: 'Clause Analysis',   icon: Search },
+    { to: '/history',   label: 'History',           icon: History },
+    { to: '/compare',   label: 'Version Diff',      icon: GitCompare },
+    { to: '/settings',  label: 'Settings',          icon: Settings },
   ];
 
   return (
-    <aside className={`sidebar-shell ${collapsed ? 'collapsed' : 'expanded'}`}>
-      <div>
-        {/* Workspace Brand Header */}
-        <div className="flex items-center justify-between pb-6 mb-4 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0 font-bold shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
+    <aside className={`sidebar-shell ${collapsed ? 'collapsed' : 'expanded'}`} style={{ padding: '16px 10px' }}>
+      {/* Brand */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+        {!collapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShieldCheck size={16} color="#fff" />
             </div>
-            {!collapsed && (
-              <div>
-                <div className="font-bold text-sm text-slate-900 dark:text-white leading-tight">ContractClaw</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Enterprise AI</div>
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>ContractClaw</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Enterprise AI</div>
+            </div>
           </div>
-          
-          <button 
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
-            title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-        </div>
-
-        {/* Navigation Items */}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            );
-          })}
-        </nav>
+        )}
+        {collapsed && (
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={16} color="#fff" />
+          </div>
+        )}
+        <button onClick={() => setCollapsed(c => !c)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex' }}>
+          {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+        </button>
       </div>
 
-      {/* Footer Section */}
-      <div>
-        {/* Credit Meter Card (Only visible when expanded) */}
+      {/* Nav */}
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {nav.map(({ to, label, icon: Icon }) => (
+          <NavLink key={to} to={to} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`} title={collapsed ? label : undefined}>
+            <Icon size={16} style={{ flexShrink: 0 }} />
+            {!collapsed && <span>{label}</span>}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Footer */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
         {!collapsed && (
-          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 mb-4">
-            <div className="text-xs font-semibold text-slate-900 dark:text-white mb-1">
-              Credits Remaining
+          <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Credits remaining</div>
+            <div style={{ height: 4, background: 'var(--border)', borderRadius: 999, overflow: 'hidden', margin: '6px 0' }}>
+              <div style={{ width: '15%', height: '100%', background: 'var(--accent)', borderRadius: 999 }} />
             </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mb-2">
-              <div className="bg-teal-600 h-full w-[15%]" />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              <span>15/100 used</span>
-              <button className="text-teal-600 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Upgrade
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+              <span>15 / 100</span>
+              <button onClick={() => {}} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Sparkles size={11} /> Upgrade
               </button>
             </div>
           </div>
         )}
-
-        {/* User Profile & Role Badge */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-teal-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
-              JG
-            </div>
-            {!collapsed && (
-              <div className="overflow-hidden">
-                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">James Garcia</div>
-                <div className="text-[10px] text-teal-700 dark:text-teal-400 uppercase font-semibold flex items-center gap-1">
-                  <UserCheck className="w-3 h-3" /> {userRole}
-                </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>JG</div>
+          {!collapsed && (
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>James Garcia</div>
+              <div style={{ fontSize: 10, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                <UserCheck size={10} /> {userRole}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </aside>

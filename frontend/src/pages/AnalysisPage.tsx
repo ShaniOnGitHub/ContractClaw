@@ -1,22 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Sparkles, 
-  Flag, 
-  MessageSquare, 
-  Search, 
-  Zap, 
-  Filter, 
-  Layers, 
-  RefreshCw, 
-  Download,
-  AlertTriangle
-} from 'lucide-react';
+import { FileText, Sparkles, Flag, MessageSquare, Search, Zap, Filter, Layers, RefreshCw, Download, AlertTriangle } from 'lucide-react';
 import { queryRetriever, selectSample } from '../services/api';
 import type { QueryResponse } from '../services/api';
 
+const MODES = [
+  { id: 'Similarity Search',         icon: Search    },
+  { id: 'MMR (Diversity Mode)',       icon: Zap       },
+  { id: 'Multi-Query Retriever',      icon: Sparkles  },
+  { id: 'Self-Query Retriever',       icon: Filter    },
+  { id: 'Parent Document Retriever',  icon: Layers    },
+];
+
 export const AnalysisPage: React.FC = () => {
-  const [activeSample] = useState('sample_nda.pdf');
+  const [activeSample]  = useState('sample_nda.pdf');
   const [activeMode, setActiveMode] = useState('Similarity Search');
   const [queryText, setQueryText] = useState('What are the termination clauses, liability caps, and payment obligations?');
   const [response, setResponse] = useState<QueryResponse | null>(null);
@@ -24,9 +20,7 @@ export const AnalysisPage: React.FC = () => {
   const [flaggedClauses, setFlaggedClauses] = useState<Record<number, boolean>>({});
   const [clauseComments, setClauseComments] = useState<Record<number, string>>({});
 
-  useEffect(() => {
-    runAnalysis();
-  }, [activeMode]);
+  useEffect(() => { runAnalysis(); }, [activeMode]);
 
   const runAnalysis = async () => {
     setLoading(true);
@@ -34,216 +28,154 @@ export const AnalysisPage: React.FC = () => {
       await selectSample(activeSample);
       const res = await queryRetriever(queryText, activeMode);
       setResponse(res);
-    } catch (err) {
-      console.error('Analysis failed:', err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error('Analysis failed:', err); }
+    finally { setLoading(false); }
   };
 
-  const toggleFlag = (index: number) => {
-    setFlaggedClauses(prev => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  const handleCommentChange = (index: number, text: string) => {
-    setClauseComments(prev => ({ ...prev, [index]: text }));
-  };
+  const pane: React.CSSProperties = { overflow: 'auto', height: '100%', padding: 20 };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      {/* Top Controls Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 font-bold text-xs px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5" /> {activeSample}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Sub-header */}
+      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--accent-bg)', border: '1px solid var(--border)', borderRadius: 7, padding: '4px 10px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
+            <FileText size={13} />{activeSample}
           </div>
-          <span className="text-xs text-slate-400">|</span>
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-            Strategy: {activeMode}
-          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Strategy: {activeMode}</span>
         </div>
-
-        <div className="flex items-center gap-2">
-          {/* Re-analyze button per Functional Fix #3 */}
-          <button 
-            onClick={runAnalysis}
-            disabled={loading}
-            className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Re-Analyze Contract
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={runAnalysis} disabled={loading} className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}>
+            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> Re-Analyze
           </button>
-
-          {/* Export Report per Functional Fix #5 */}
-          <button className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
-            <Download className="w-3.5 h-3.5" />
-            Export Report (PDF)
+          <button className="btn-primary" style={{ fontSize: 12, padding: '5px 12px' }}>
+            <Download size={13} /> Export PDF
           </button>
         </div>
       </div>
 
-      {/* Dual-Pane Analysis Splitter per Design Direction #4 */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden divide-x divide-slate-200 dark:divide-slate-700">
-        
-        {/* Left Pane: Original Document Viewer with Color-Coded Risk Highlights */}
-        <div className="p-6 overflow-y-auto bg-slate-50 dark:bg-slate-900/60 space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Original Document (Risk Highlighted View)
-            </h3>
-            <div className="flex items-center gap-2 text-[11px] font-semibold">
-              <span className="badge-risk-high">High Risk</span>
-              <span className="badge-risk-med">Med Risk</span>
-              <span className="badge-risk-low">Low Risk</span>
+      {/* Dual-pane */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden', borderTop: 'none' }}>
+        {/* Left pane — original doc */}
+        <div style={{ ...pane, background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Original Document</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="badge-risk-high">High</span>
+              <span className="badge-risk-med">Med</span>
+              <span className="badge-risk-low">Low</span>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm text-xs leading-relaxed space-y-4 font-sans text-slate-800 dark:text-slate-200">
-            <div className="font-bold text-base border-b border-slate-100 dark:border-slate-700 pb-2 text-slate-900 dark:text-white">
-              MUTUAL NON-DISCLOSURE AGREEMENT
-            </div>
+          <div className="card" style={{ borderRadius: 10, padding: '18px 20px', fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>MUTUAL NON-DISCLOSURE AGREEMENT</div>
 
             <p>
-              This Mutual Non-Disclosure Agreement ("Agreement") is entered into by and between 
-              <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-semibold px-1 rounded mx-1">
-                Apex Innovations Inc. & Beta Technologies LLC
-              </span>
+              This Mutual Non-Disclosure Agreement ("Agreement") is entered into by and between{' '}
+              <mark style={{ background: 'var(--risk-low-bg)', color: 'var(--risk-low-text)', padding: '1px 4px', borderRadius: 4, fontWeight: 600 }}>
+                Apex Innovations Inc. &amp; Beta Technologies LLC
+              </mark>{' '}
               effective as of August 15, 2025.
             </p>
 
-            <div className="p-3 bg-red-50 dark:bg-red-950/40 border-l-4 border-red-500 rounded-r-lg space-y-1">
-              <div className="font-bold text-red-900 dark:text-red-300 text-xs flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" /> High Risk Clause - Unilateral Termination
+            <div style={{ background: 'var(--risk-high-bg)', borderLeft: '3px solid var(--risk-high-text)', borderRadius: '0 6px 6px 0', padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--risk-high-text)', marginBottom: 4 }}>
+                <AlertTriangle size={12} /> High Risk — Unilateral Termination
               </div>
-              <p className="text-red-800 dark:text-red-200">
-                "Either party may terminate this Agreement immediately upon written notice without penalty..."
-              </p>
+              <p style={{ fontSize: 12, color: 'var(--risk-high-text)', opacity: .9 }}>"Either party may terminate this Agreement immediately upon written notice without penalty…"</p>
             </div>
 
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-l-4 border-amber-500 rounded-r-lg space-y-1">
-              <div className="font-bold text-amber-900 dark:text-amber-300 text-xs">
-                Medium Risk Clause - Indemnification Cap
-              </div>
-              <p className="text-amber-800 dark:text-amber-200">
-                "Liability cap under this Agreement shall not exceed total fees paid in preceding six (6) months..."
-              </p>
+            <div style={{ background: 'var(--risk-med-bg)', borderLeft: '3px solid var(--risk-med-text)', borderRadius: '0 6px 6px 0', padding: '10px 14px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--risk-med-text)', marginBottom: 4 }}>Medium Risk — Indemnification Cap</div>
+              <p style={{ fontSize: 12, color: 'var(--risk-med-text)', opacity: .9 }}>"Liability cap under this Agreement shall not exceed total fees paid in preceding six (6) months…"</p>
             </div>
 
-            <p>
-              Confidential Information refers to proprietary information, technical data, trade secrets, and software code...
-            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Confidential Information refers to proprietary information, technical data, trade secrets, and software code…</p>
           </div>
         </div>
 
-        {/* Right Pane: Clause Extractor, Summary, & Expandable Cards */}
-        <div className="p-6 overflow-y-auto bg-white dark:bg-slate-800 space-y-6">
-          {/* Risk Score Summary Card */}
-          <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+        {/* Right pane — analysis */}
+        <div style={{ ...pane, background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Risk score summary */}
+          <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase">Overall Legal Risk Index</div>
-              <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">25 / 100</div>
-              <div className="text-xs text-emerald-600 font-semibold mt-1">Low Risk Contract</div>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Overall Risk Index</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1, margin: '4px 0' }}>25 / 100</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--risk-low-text)' }}>Low Risk Contract</div>
             </div>
-            <div className="w-14 h-14 rounded-full border-4 border-emerald-500 text-emerald-600 font-bold text-base flex items-center justify-center">
-              25%
-            </div>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--risk-low-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: 'var(--risk-low-text)' }}>25%</div>
           </div>
 
-          {/* Retriever Strategy Selection Bar */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl text-xs font-semibold">
-            {[
-              { id: 'Similarity Search', icon: Search },
-              { id: 'MMR (Diversity Mode)', icon: Zap },
-              { id: 'Multi-Query Retriever', icon: Sparkles },
-              { id: 'Self-Query Retriever', icon: Filter },
-              { id: 'Parent Document Retriever', icon: Layers }
-            ].map(item => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveMode(item.id)}
-                  className={`flex-1 py-2 px-2 rounded-lg transition flex items-center justify-center gap-1 ${
-                    activeMode === item.id 
-                      ? 'bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden lg:inline">{item.id.split(' ')[0]}</span>
-                </button>
-              );
-            })}
+          {/* Mode selector */}
+          <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 9, padding: 4, display: 'flex', gap: 2 }}>
+            {MODES.map(({ id, icon: Icon }) => (
+              <button key={id}
+                onClick={() => setActiveMode(id)}
+                style={{
+                  flex: 1, padding: '6px 4px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all .12s',
+                  background: activeMode === id ? 'var(--bg-surface)' : 'transparent',
+                  color: activeMode === id ? 'var(--accent)' : 'var(--text-muted)',
+                  boxShadow: activeMode === id ? 'var(--shadow-card)' : 'none',
+                }}
+              >
+                <Icon size={12} /><span style={{ display: 'none' }}>{id}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -10 }}>{activeMode}</div>
+
+          {/* Query bar */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="text" value={queryText} onChange={e => setQueryText(e.target.value)} placeholder="Ask about clauses…" className="input" style={{ flex: 1 }} />
+            <button onClick={runAnalysis} className="btn-primary" style={{ padding: '7px 16px', flexShrink: 0 }}>Analyze</button>
           </div>
 
-          {/* Search Query Input Bar */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
-              placeholder="Ask a question about clauses..."
-              className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs rounded-xl px-4 py-2.5 outline-none focus:border-teal-500"
-            />
-            <button
-              onClick={runAnalysis}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition"
-            >
-              Analyze
-            </button>
-          </div>
-
-          {/* Skeleton Loaders during Processing State per Design Direction #8 */}
+          {/* Loading skeleton */}
           {loading && (
-            <div className="space-y-4">
-              <div className="skeleton h-24 w-full" />
-              <div className="skeleton h-32 w-full" />
-              <div className="skeleton h-28 w-full" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[88, 112, 96].map(h => <div key={h} className="skeleton" style={{ height: h, borderRadius: 10 }} />)}
             </div>
           )}
 
-          {/* Extracted Clause Cards with Inline Commenting/Flagging per Functional Fix #6 */}
+          {/* Results */}
           {!loading && response && (
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {response.results.map((doc, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
-                    <div className="flex items-center gap-2">
+                <div key={idx} className="card" style={{ borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span className="badge-risk-low">Low Risk</span>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Clause #{idx + 1}
-                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Clause #{idx + 1}</span>
                     </div>
-
-                    {/* Inline Flagging per Functional Fix #6 */}
                     <button
-                      onClick={() => toggleFlag(idx)}
-                      className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition ${
-                        flaggedClauses[idx]
-                          ? 'bg-red-50 text-red-600 border border-red-200'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-slate-800'
-                      }`}
+                      onClick={() => setFlaggedClauses(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
+                        padding: '3px 10px', borderRadius: 6, border: '1px solid', cursor: 'pointer', transition: 'all .12s',
+                        background: flaggedClauses[idx] ? 'var(--risk-high-bg)' : 'var(--bg-subtle)',
+                        color: flaggedClauses[idx] ? 'var(--risk-high-text)' : 'var(--text-muted)',
+                        borderColor: flaggedClauses[idx] ? 'var(--risk-high-border)' : 'var(--border)',
+                      }}
                     >
-                      <Flag className="w-3.5 h-3.5" />
-                      {flaggedClauses[idx] ? 'Flagged for Legal Review' : 'Flag Clause'}
+                      <Flag size={11} />{flaggedClauses[idx] ? 'Flagged' : 'Flag'}
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
-                    {doc.content}
-                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>{doc.content}</p>
 
-                  {/* Inline Commenting per Functional Fix #6 */}
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold mb-1">
-                      <MessageSquare className="w-3.5 h-3.5" /> Note / Legal Review Comment:
+                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 5 }}>
+                      <MessageSquare size={11} /> Internal Note
                     </div>
                     <input
                       type="text"
                       value={clauseComments[idx] || ''}
-                      onChange={(e) => handleCommentChange(idx, e.target.value)}
-                      placeholder="Add an internal note or review instruction..."
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs px-3 py-1.5 outline-none focus:border-teal-500 text-slate-800 dark:text-slate-200"
+                      onChange={e => setClauseComments(prev => ({ ...prev, [idx]: e.target.value }))}
+                      placeholder="Add a review note…"
+                      className="input"
+                      style={{ fontSize: 12 }}
                     />
                   </div>
                 </div>
@@ -252,6 +184,7 @@ export const AnalysisPage: React.FC = () => {
           )}
         </div>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, FileText, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle2, Loader2, ArrowRight, X } from 'lucide-react';
 import { uploadPdf } from '../services/api';
 
 interface UploadItem {
@@ -22,15 +22,10 @@ export const UploadPage: React.FC = () => {
     if (fileArray.length === 0) return;
 
     const newItems: UploadItem[] = fileArray.map(f => ({
-      id: Math.random().toString(),
-      file: f,
-      progress: 0,
-      status: 'uploading'
+      id: Math.random().toString(), file: f, progress: 0, status: 'uploading'
     }));
-
     setQueue(prev => [...prev, ...newItems]);
 
-    // Process files sequentially or in batch
     for (const item of newItems) {
       try {
         setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'parsing', progress: 50 } : q));
@@ -42,112 +37,110 @@ export const UploadPage: React.FC = () => {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (e.dataTransfer.files) {
-      handleFiles(e.dataTransfer.files);
-    }
-  };
+  const removeItem = (id: string) => setQueue(prev => prev.filter(q => q.id !== id));
 
   return (
-    <div className="p-8 max-w-5xl mx-auto h-full overflow-y-auto space-y-8">
+    <div style={{ padding: '28px 32px', maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Upload Contract PDF</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Drag and drop PDF contracts to extract metadata and index into vector storage automatically.
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Upload Contracts</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+          Drop PDF contracts here to extract metadata and index into vector storage automatically.
         </p>
       </div>
 
-      {/* Large Drag and Drop Dropzone per Design Direction #3 */}
+      {/* Dropzone */}
       <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
+        onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files) handleFiles(e.dataTransfer.files); }}
         onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed rounded-3xl p-12 text-center cursor-pointer transition-all ${
-          dragOver 
-            ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20 scale-[1.01]' 
-            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-400'
-        }`}
+        style={{
+          border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 14,
+          padding: '48px 32px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          background: dragOver ? 'var(--accent-bg)' : 'var(--bg-surface)',
+          transition: 'all .15s',
+        }}
       >
-        <div className="w-16 h-16 rounded-2xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto mb-4 border border-teal-200 dark:border-teal-700">
-          <UploadCloud className="w-8 h-8" />
+        <div style={{
+          width: 56, height: 56, borderRadius: 12,
+          background: 'var(--accent-bg)', border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px'
+        }}>
+          <UploadCloud size={26} color="var(--accent)" />
         </div>
-
-        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
           Click to upload or drag & drop PDFs here
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Supports single or batch contract file uploads
-        </p>
-
-        <div className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-600">
-          <span>Accepted format:</span>
-          <span className="font-mono text-teal-600 dark:text-teal-400">PDF (Max 25MB)</span>
         </div>
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={(e) => e.target.files && handleFiles(e.target.files)}
-          accept=".pdf"
-          multiple
-          className="hidden"
-        />
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+          Supports single or batch uploads
+        </div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, padding: '4px 14px', fontSize: 12 }}>
+          <span style={{ color: 'var(--text-secondary)' }}>Accepted format:</span>
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)' }}>PDF · Max 25 MB</span>
+        </div>
+        <input type="file" ref={fileInputRef} onChange={e => e.target.files && handleFiles(e.target.files)} accept=".pdf" multiple style={{ display: 'none' }} />
       </div>
 
-      {/* Batch Upload Queue List with per-file status per Functional Addition #7 */}
+      {/* Queue */}
       {queue.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Batch Upload Queue ({queue.length})</h3>
+        <div className="card" style={{ borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Upload Queue ({queue.length})</div>
             {queue.some(q => q.status === 'completed') && (
-              <button
-                onClick={() => navigate('/analysis')}
-                className="flex items-center gap-2 text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
-              >
-                Go to Dual-Pane Analysis <ArrowRight className="w-3.5 h-3.5" />
+              <button onClick={() => navigate('/analysis')} style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                Go to Analysis <ArrowRight size={12} />
               </button>
             )}
           </div>
-
-          <div className="space-y-3">
-            {queue.map((item) => (
-              <div key={item.id} className="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-teal-600" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {queue.map((item, i) => (
+              <div key={item.id} style={{
+                padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: i < queue.length - 1 ? '1px solid var(--border)' : 'none',
+                background: 'var(--bg-surface)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FileText size={15} color="var(--accent)" />
+                  </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.file.name}</div>
-                    <div className="text-[10px] text-slate-400">{(item.file.size / 1024).toFixed(1)} KB</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.file.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(item.file.size / 1024).toFixed(1)} KB</div>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {item.status === 'uploading' && (
-                    <span className="text-xs text-blue-600 font-semibold flex items-center gap-1">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Uploading…
                     </span>
                   )}
                   {item.status === 'parsing' && (
-                    <span className="text-xs text-amber-600 font-semibold flex items-center gap-1">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Indexing Vectors...
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--risk-med-text)', fontWeight: 600 }}>
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Indexing…
                     </span>
                   )}
                   {item.status === 'completed' && (
-                    <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Ready for Analysis
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--risk-low-text)', fontWeight: 600 }}>
+                      <CheckCircle2 size={14} /> Ready
                     </span>
                   )}
                   {item.status === 'error' && (
-                    <span className="text-xs text-red-600 font-semibold">{item.errorMsg}</span>
+                    <span style={{ fontSize: 12, color: 'var(--risk-high-text)', fontWeight: 600 }}>{item.errorMsg}</span>
                   )}
+                  <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 2 }}>
+                    <X size={13} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };
