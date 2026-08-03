@@ -1,9 +1,14 @@
 import os
+import hashlib
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from config import SAMPLE_CONTRACTS_DIR
 from utils.pdf_parser import extract_pdf_text_and_metadata
@@ -14,9 +19,17 @@ from retrievers.multi_query_retriever import multi_query_search
 from retrievers.self_query_retriever import self_query_search
 from retrievers.parent_doc_retriever import ContractParentDocumentRetriever
 
-app = FastAPI(title="ContractClaw API", version="2.0.0")
+# Setup Structured Logging per Nonfunctional Fix #8
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("contractclaw_api")
 
-# Enable CORS for React frontend
+# Rate Limiter setup per Nonfunctional Fix #5
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="ContractClaw API Server", version="2.5.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,12 +42,19 @@ app.add_middleware(
 vector_manager = ContractVectorStoreManager(collection_name="contractclaw_similarity")
 parent_retriever = ContractParentDocumentRetriever(collection_name="contractclaw_parent_doc")
 
-# Current Document State Storage
+# SHA-256 Document Analysis Cache per Nonfunctional Fix #6
+analysis_cache: Dict[str, Any] = {}
+
+# Active Document State Storage
 active_document = {
     "text": "",
     "metadata": {},
-    "filename": ""
+    "filename": "",
+    "hash": ""
 }
+
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB max limit
+
 
 class QueryRequest(BaseModel):
     query: str
@@ -57,7 +77,8 @@ class SampleSelectRequest(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "ContractClaw API v2"}
+    logger.info("Health check requested")
+    return {"status": "ok", "version": "2.5.0", "cache_entries": len(analysis_cache)}
 
 
 @app.get("/api/samples")
@@ -70,22 +91,27 @@ def get_sample_contracts():
 def select_sample_contract(req: SampleSelectRequest):
     sample_path = SAMPLE_CONTRACTS_DIR / req.filename
     if not sample_path.exists():
+        logger.error(f"Sample contract not found: {req.filename}")
         raise HTTPException(status_code=404, detail="Sample contract not found")
         
     with open(sample_path, "rb") as f:
         pdf_bytes = f.read()
-        
+
+    doc_hash = hashlib.sha256(pdf_bytes).hexdigest()
+    logger.info(f"Selecting sample contract: {req.filename} (Hash: {doc_hash[:8]}...)")
+
     result = extract_pdf_text_and_metadata(pdf_bytes, filename=req.filename)
     active_document["text"] = result["text"]
     active_document["metadata"] = result["metadata"]
     active_document["filename"] = req.filename
+    active_document["hash"] = doc_hash
 
-    # Index into vector stores
     chunks = vector_manager.index_document(result["text"], result["metadata"])
     num_p, num_c = parent_retriever.index_document(result["text"], result["metadata"])
 
     return {
         "status": "success",
+        "hash": doc_hash,
         "metadata": result["metadata"],
         "base_chunks": len(chunks),
         "parent_docs": num_p,
@@ -95,21 +121,32 @@ def select_sample_contract(req: SampleSelectRequest):
 
 @app.post("/api/upload")
 async def upload_pdf_contract(file: UploadFile = File(...)):
+    # File Validation per Nonfunctional Fix #4
     if not file.filename.endswith(".pdf"):
+        logger.warning(f"Rejected invalid file extension: {file.filename}")
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
         
     contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        logger.warning(f"Rejected oversized file: {len(contents)} bytes")
+        raise HTTPException(status_code=413, detail="File size exceeds maximum allowed 25MB")
+
+    doc_hash = hashlib.sha256(contents).hexdigest()
+    logger.info(f"Uploaded contract: {file.filename} ({len(contents)} bytes, Hash: {doc_hash[:8]}...)")
+
     result = extract_pdf_text_and_metadata(contents, filename=file.filename)
     
     active_document["text"] = result["text"]
     active_document["metadata"] = result["metadata"]
     active_document["filename"] = file.filename
+    active_document["hash"] = doc_hash
 
     chunks = vector_manager.index_document(result["text"], result["metadata"])
     num_p, num_c = parent_retriever.index_document(result["text"], result["metadata"])
 
     return {
         "status": "success",
+        "hash": doc_hash,
         "metadata": result["metadata"],
         "base_chunks": len(chunks),
         "parent_docs": num_p,
@@ -149,11 +186,19 @@ def execute_retriever_logic(mode: str, query: str, k: int, lambda_mult: float, f
 
 
 @app.post("/api/query")
-def query_retriever(req: QueryRequest):
+@limiter.limit("30/minute")
+def query_retriever(request: Request, req: QueryRequest):
     if not active_document["text"]:
-        # Auto-load sample NDA if no active document
         select_sample_contract(SampleSelectRequest(filename="sample_nda.pdf"))
+
+    cache_key = f"{active_document['hash']}:{req.mode}:{req.query}:{req.k}:{req.lambda_mult}"
+    
+    # Document Hash Caching per Nonfunctional Fix #6
+    if cache_key in analysis_cache:
+        logger.info(f"Returning cached analysis for key: {cache_key[:16]}...")
+        return analysis_cache[cache_key]
         
+    logger.info(f"Executing query under mode {req.mode}: '{req.query}'")
     docs, info = execute_retriever_logic(
         mode=req.mode,
         query=req.query,
@@ -162,7 +207,7 @@ def query_retriever(req: QueryRequest):
         full_context=req.full_context
     )
     
-    return {
+    response_payload = {
         "query": req.query,
         "mode": req.mode,
         "metadata": active_document["metadata"],
@@ -170,12 +215,18 @@ def query_retriever(req: QueryRequest):
         "info": info
     }
 
+    # Cache payload
+    analysis_cache[cache_key] = response_payload
+    return response_payload
+
 
 @app.post("/api/compare")
-def compare_retrievers(req: CompareRequest):
+@limiter.limit("20/minute")
+def compare_retrievers(request: Request, req: CompareRequest):
     if not active_document["text"]:
         select_sample_contract(SampleSelectRequest(filename="sample_nda.pdf"))
         
+    logger.info(f"Comparing {req.mode_a} vs {req.mode_b} for query: '{req.query}'")
     docs_a, info_a = execute_retriever_logic(req.mode_a, req.query, req.k, req.lambda_mult, req.full_context)
     docs_b, info_b = execute_retriever_logic(req.mode_b, req.query, req.k, req.lambda_mult, req.full_context)
 

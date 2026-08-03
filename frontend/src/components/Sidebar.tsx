@@ -1,147 +1,119 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { 
-  ChevronDown, 
-  Folder, 
-  Search, 
-  Sparkles, 
-  Zap, 
-  Layers, 
-  Filter, 
+  LayoutDashboard, 
+  FileText, 
+  UploadCloud, 
+  History, 
   GitCompare, 
-  ShieldCheck,
-  FileText,
-  Upload
+  Settings, 
+  ShieldCheck, 
+  ChevronLeft, 
+  ChevronRight,
+  Sparkles,
+  Search,
+  UserCheck
 } from 'lucide-react';
 
 interface SidebarProps {
-  samples: string[];
-  activeSample: string;
-  onSelectSample: (filename: string) => void;
-  activeMode: string;
-  onSelectMode: (mode: string) => void;
-  onFileUpload: (file: File) => void;
+  userRole?: 'admin' | 'reviewer' | 'viewer';
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
-  samples,
-  activeSample,
-  onSelectSample,
-  activeMode,
-  onSelectMode,
-  onFileUpload
-}) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export const Sidebar: React.FC<SidebarProps> = ({ userRole = 'admin' }) => {
+  const [collapsed, setCollapsed] = useState(false);
 
-  const retrieverModes = [
-    { id: 'Similarity Search', label: 'Similarity Search', icon: Search },
-    { id: 'MMR (Diversity Mode)', label: 'MMR Diversity Mode', icon: Zap },
-    { id: 'Multi-Query Retriever', label: 'Multi-Query Expansion', icon: Sparkles },
-    { id: 'Self-Query Retriever', label: 'Self-Query Smart Filter', icon: Filter },
-    { id: 'Parent Document Retriever', label: 'Parent-Doc Full Context', icon: Layers },
-    { id: 'Compare Modes Lab', label: 'Compare Modes Lab', icon: GitCompare },
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/contracts', label: 'Contracts List', icon: FileText },
+    { path: '/upload', label: 'Upload Contract', icon: UploadCloud },
+    { path: '/analysis', label: 'Clause Analysis', icon: Search },
+    { path: '/history', label: 'Contract History', icon: History },
+    { path: '/compare', label: 'Version Diffing', icon: GitCompare },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onFileUpload(e.target.files[0]);
-    }
-  };
-
   return (
-    <div className="sidebar">
+    <aside className={`sidebar-shell ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div>
-        {/* Workspace Dropdown Header */}
-        <div className="sidebar-header">
-          <div className="sidebar-header-left">
-            <ShieldCheck className="w-4 h-4 text-teal-600" />
-            <span>ContractClaw Workspace</span>
-          </div>
-          <ChevronDown className="w-4 h-4 text-gray-400" />
-        </div>
-
-        {/* Resources Section */}
-        <div className="sidebar-section-label">Resources</div>
-        <div className="sidebar-item">
-          <Folder className="w-4 h-4 text-gray-500" />
-          <span>Contract Assets Library</span>
-        </div>
-
-        {/* Contract Projects List */}
-        <div className="flex items-center justify-between px-2 mt-4 mb-2">
-          <span className="sidebar-section-label !m-0">Contracts</span>
-          <div className="flex items-center gap-1">
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1 hover:bg-white rounded transition text-gray-500 hover:text-gray-900"
-              title="Upload Contract PDF"
-            >
-              <Upload className="w-3.5 h-3.5" />
-            </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept=".pdf" 
-              className="hidden" 
-            />
-          </div>
-        </div>
-
-        {samples.map((filename) => (
-          <div
-            key={filename}
-            onClick={() => onSelectSample(filename)}
-            className={`sidebar-item ${activeSample === filename ? 'active' : ''}`}
-          >
-            <FileText className="w-4 h-4" />
-            <span className="truncate">{filename}</span>
-          </div>
-        ))}
-
-        {/* Retriever Strategy Labs Section */}
-        <div className="sidebar-section-label mt-6">Retriever Strategies</div>
-        {retrieverModes.map((mode) => {
-          const Icon = mode.icon;
-          return (
-            <div
-              key={mode.id}
-              onClick={() => onSelectMode(mode.id)}
-              className={`sidebar-item ${activeMode === mode.id ? 'active' : ''}`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{mode.label}</span>
+        {/* Workspace Brand Header */}
+        <div className="flex items-center justify-between pb-6 mb-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0 font-bold shadow-sm">
+              <ShieldCheck className="w-5 h-5" />
             </div>
-          );
-        })}
-      </div>
-
-      {/* Bottom Section: Credit Card & Profile */}
-      <div>
-        {/* Credit Usage Meter Card */}
-        <div className="credit-card">
-          <div className="credit-title">You're running out of Credits</div>
-          <div className="credit-sub">
-            Keep your flow going. Add more credits and stay in the creative zone.
+            {!collapsed && (
+              <div>
+                <div className="font-bold text-sm text-slate-900 dark:text-white leading-tight">ContractClaw</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Enterprise AI</div>
+              </div>
+            )}
           </div>
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" />
-          </div>
-          <div className="credit-count">15/100</div>
-          <button className="btn-upgrade-plan">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Upgrade plan</span>
+          
+          <button 
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+            title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* User Profile Footer */}
-        <div className="user-profile">
-          <div className="user-profile-left">
-            <div className="avatar">JG</div>
-            <div className="user-name">James Garcia (Pro)</div>
+        {/* Navigation Items */}
+        <nav className="space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Footer Section */}
+      <div>
+        {/* Credit Meter Card (Only visible when expanded) */}
+        {!collapsed && (
+          <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 mb-4">
+            <div className="text-xs font-semibold text-slate-900 dark:text-white mb-1">
+              Credits Remaining
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mb-2">
+              <div className="bg-teal-600 h-full w-[15%]" />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <span>15/100 used</span>
+              <button className="text-teal-600 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> Upgrade
+              </button>
+            </div>
           </div>
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+        )}
+
+        {/* User Profile & Role Badge */}
+        <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-teal-700 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+              JG
+            </div>
+            {!collapsed && (
+              <div className="overflow-hidden">
+                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">James Garcia</div>
+                <div className="text-[10px] text-teal-700 dark:text-teal-400 uppercase font-semibold flex items-center gap-1">
+                  <UserCheck className="w-3 h-3" /> {userRole}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
