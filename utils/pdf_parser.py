@@ -6,53 +6,74 @@ import pdfplumber
 from pypdf import PdfReader
 
 
-def detect_contract_type(text: str) -> str:
-    """Detect contract type from text using precise word-boundary patterns."""
-    text_lower = text.lower()
+def detect_contract_type(text: str, filename: str = "") -> str:
+    """Detect contract type from text and filename using robust legal pattern matching."""
+    combined = f"{filename} {text[:2000]}".lower()
     
-    if re.search(r"\b(non-disclosure|nondisclosure|confidentiality agreement|nda)\b", text_lower):
+    if re.search(r"\b(non[\s\-]*disclosure|confidentiality|nda)\b", combined):
         return "NDA"
-    elif re.search(r"\b(employment agreement|employment contract|offer letter|employment)\b", text_lower):
+    elif re.search(r"\b(employment|job offer|offer letter|employee agreement|work agreement)\b", combined):
         return "Employment"
-    elif re.search(r"\b(statement of work|sow|scope of work)\b", text_lower):
+    elif re.search(r"\b(statement of work|sow|scope of work|task order)\b", combined):
         return "SOW"
-    elif re.search(r"\b(master services agreement|service agreement|msa|services contract)\b", text_lower):
+    elif re.search(r"\b(master services|service agreement|services agreement|msa|consulting agreement|subcontractor)\b", combined):
         return "Service Agreement"
+    elif re.search(r"\b(license agreement|software license|eula|saas agreement)\b", combined):
+        return "License Agreement"
+    elif re.search(r"\b(vendor agreement|supplier agreement|procurement)\b", combined):
+        return "Vendor Agreement"
+    elif re.search(r"\b(lease|rental agreement|tenancy)\b", combined):
+        return "Lease Agreement"
     
     return "Other"
 
 
 def detect_parties(text: str) -> str:
-    """Extract involved parties using clean regex heuristics."""
-    # Clean newlines for matching
-    cleaned = re.sub(r"\s+", " ", text)
+    """Extract involved parties using comprehensive legal preamble heuristics."""
+    preamble = text[:3000]
+    cleaned = re.sub(r"\s+", " ", preamble)
     
+    def clean_party(name: str) -> str:
+        # Strip date suffixes, effective clauses, and parentheticals
+        name = re.sub(r'\s*\([^)]*\)', '', name)
+        name = re.sub(r'\b(on|dated|effective|as of|this)\b.*$', '', name, flags=re.IGNORECASE)
+        name = re.sub(r'^(a|an|the)\s+', '', name, flags=re.IGNORECASE)
+        return name.strip().rstrip(',. ";:')
+
     patterns = [
-        r"(?:entered into by and between|by and between|between)\s+([A-Z][A-Za-z0-9\s,\.]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited)?)\s+and\s+([A-Z][A-Za-z0-9\s,\.]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited)?)(?=\s+(?:effective|on|\,|\.|\"))",
-        r"Party A:\s*([^\n]+)\s*Party B:\s*([^\n]+)",
+        # Pattern 1: ...between [Party A] and [Party B]...
+        r"(?:entered into|made|effective|dated)?[^.\n]*?\b(?:by and between|between|among)\b\s+([^,\n;]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited|Co\.|GmbH|Pte\.)?)\s+(?:\(\"[^\"]+\"\)\s+)?(?:and|&)\s+([^,\n;]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited|Co\.|GmbH|Pte\.)?)",
+        
+        # Pattern 2: Party A: ... Party B: ...
+        r"(?:Party\s*A|Company|Disclosing\s*Party|Client):\s*([^\n;]+)\s*(?:Party\s*B|Employee|Receiving\s*Party|Contractor):\s*([^\n;]+)",
+
+        # Pattern 3: BY AND BETWEEN ... AND ...
+        r"BY AND BETWEEN\s+([^\n,;]+)\s+AND\s+([^\n,;]+)",
     ]
     
     for pattern in patterns:
         match = re.search(pattern, cleaned, re.IGNORECASE)
         if match:
-            party1 = match.group(1).strip().rstrip(",")
-            party2 = match.group(2).strip().rstrip(",")
-            return f"{party1} & {party2}"
-    
+            p1 = clean_party(match.group(1))
+            p2 = clean_party(match.group(2))
+            if p1 and p2 and len(p1) > 2 and len(p2) > 2:
+                return f"{p1} & {p2}"
+
+    # Fallback: Find capitalized entity names with Inc, LLC, Corp, etc.
+    entities = re.findall(r"\b([A-Z][A-Za-z0-9\s&\.\-]{2,40}?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited))\b", preamble)
+    if len(entities) >= 2:
+        clean_entities = list(dict.fromkeys([clean_party(e) for e in entities if clean_party(e)]))
+        if len(clean_entities) >= 2:
+            return f"{clean_entities[0]} & {clean_entities[1]}"
+        elif len(clean_entities) == 1:
+            return clean_entities[0]
+
     return "Undetected Parties"
 
 
 def extract_pdf_text_and_metadata(pdf_file: Union[bytes, str, BytesIO], filename: str = "uploaded_contract.pdf") -> Dict[str, Any]:
-    """
-    Parses PDF bytes or file path, extracts full text and autodetects metadata schema:
-    - filename
-    - upload_date (ISO format)
-    - contract_type
-    - parties
-    """
     extracted_text = ""
     
-    # Try pdfplumber first
     try:
         if isinstance(pdf_file, bytes):
             pdf_file_obj = BytesIO(pdf_file)
@@ -67,7 +88,6 @@ def extract_pdf_text_and_metadata(pdf_file: Union[bytes, str, BytesIO], filename
                     pages_text.append(text)
             extracted_text = "\n\n".join(pages_text)
     except Exception as e:
-        # Fallback to PyPDF
         try:
             if isinstance(pdf_file, bytes):
                 pdf_file_obj = BytesIO(pdf_file)
@@ -80,7 +100,7 @@ def extract_pdf_text_and_metadata(pdf_file: Union[bytes, str, BytesIO], filename
         except Exception as fallback_e:
             extracted_text = f"Error reading PDF: {str(e)} | Fallback Error: {str(fallback_e)}"
 
-    contract_type = detect_contract_type(extracted_text)
+    contract_type = detect_contract_type(extracted_text, filename=filename)
     parties = detect_parties(extracted_text)
     upload_date = date.today().isoformat()
 

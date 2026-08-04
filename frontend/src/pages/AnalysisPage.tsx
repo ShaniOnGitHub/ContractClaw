@@ -1,189 +1,401 @@
-import React, { useState, useEffect } from 'react';
-import { FileText, Sparkles, Flag, MessageSquare, Search, Zap, Filter, Layers, RefreshCw, Download, AlertTriangle } from 'lucide-react';
-import { queryRetriever, selectSample } from '../services/api';
-import type { QueryResponse } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  FileText, Sparkles, Flag, MessageSquare, Search, Zap,
+  Filter, Layers, AlertTriangle, ShieldCheck,
+  ChevronDown, ChevronUp, Loader2
+} from 'lucide-react';
+import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation } from '../services/api';
+import type { Contract, RiskFinding } from '../services/api';
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MODES = [
-  { id: 'Similarity Search',         icon: Search    },
-  { id: 'MMR (Diversity Mode)',       icon: Zap       },
-  { id: 'Multi-Query Retriever',      icon: Sparkles  },
-  { id: 'Self-Query Retriever',       icon: Filter    },
-  { id: 'Parent Document Retriever',  icon: Layers    },
+  { id: 'Similarity Search',        icon: Search   },
+  { id: 'MMR (Diversity Mode)',      icon: Zap      },
+  { id: 'Multi-Query Retriever',     icon: Sparkles },
+  { id: 'Self-Query Retriever',      icon: Filter   },
+  { id: 'Parent Document Retriever', icon: Layers   },
 ];
 
-export const AnalysisPage: React.FC = () => {
-  const [activeSample]  = useState('sample_nda.pdf');
-  const [activeMode, setActiveMode] = useState('Similarity Search');
-  const [queryText, setQueryText] = useState('What are the termination clauses, liability caps, and payment obligations?');
-  const [response, setResponse] = useState<QueryResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [flaggedClauses, setFlaggedClauses] = useState<Record<number, boolean>>({});
-  const [clauseComments, setClauseComments] = useState<Record<number, string>>({});
+const severityConfig: Record<string, { cls: string; border: string }> = {
+  High:   { cls: 'badge-risk-high', border: 'var(--risk-high-border)' },
+  Medium: { cls: 'badge-risk-med',  border: 'var(--risk-med-border)'  },
+  Low:    { cls: 'badge-risk-low',  border: 'var(--risk-low-border)'  },
+};
 
-  useEffect(() => { runAnalysis(); }, [activeMode]);
+const riskBg: Record<string, string> = {
+  High:   'var(--risk-high-bg)',
+  Medium: 'var(--risk-med-bg)',
+  Low:    'var(--risk-low-bg)',
+};
 
-  const runAnalysis = async () => {
-    setLoading(true);
-    try {
-      await selectSample(activeSample);
-      const res = await queryRetriever(queryText, activeMode);
-      setResponse(res);
-    } catch (err) { console.error('Analysis failed:', err); }
-    finally { setLoading(false); }
+// ─── Risk Card ─────────────────────────────────────────────────────────────────
+
+interface RiskCardProps {
+  risk: RiskFinding;
+  index: number;
+  annotation?: { flagged: boolean; note: string };
+  onSaveAnnotation: (index: number, flagged: boolean, note: string) => void;
+}
+
+const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnnotation }) => {
+  const [flagged, setFlagged] = useState(annotation?.flagged || false);
+  const [comment, setComment] = useState(annotation?.note || '');
+  const [expanded, setExpanded] = useState(index < 2);
+
+  useEffect(() => {
+    if (annotation) {
+      setFlagged(annotation.flagged);
+      setComment(annotation.note);
+    }
+  }, [annotation]);
+
+  const toggleFlag = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextFlagged = !flagged;
+    setFlagged(nextFlagged);
+    onSaveAnnotation(index, nextFlagged, comment);
   };
 
-  const pane: React.CSSProperties = { overflow: 'auto', height: '100%', padding: 20 };
+  const handleBlur = () => {
+    onSaveAnnotation(index, flagged, comment);
+  };
+
+  const cfg = severityConfig[risk.severity] || severityConfig.Low;
+
+  return (
+    <div style={{
+      border: `1px solid ${flagged ? 'var(--risk-high-border)' : 'var(--border)'}`,
+      borderRadius: 10,
+      background: flagged ? 'var(--risk-high-bg)' : 'var(--bg-surface)',
+      overflow: 'hidden',
+      transition: 'border-color .15s',
+    }}>
+      {/* Header */}
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className={cfg.cls}>{risk.severity}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{risk.risk_type}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={toggleFlag}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600,
+              padding: '2px 8px', borderRadius: 5, border: '1px solid',
+              cursor: 'pointer', transition: 'all .12s',
+              background: flagged ? 'var(--risk-high-bg)' : 'var(--bg-subtle)',
+              color: flagged ? 'var(--risk-high-text)' : 'var(--text-muted)',
+              borderColor: flagged ? 'var(--risk-high-border)' : 'var(--border)',
+            }}
+          >
+            <Flag size={10} />{flagged ? 'Flagged' : 'Flag'}
+          </button>
+          {expanded ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+        </div>
+      </div>
+
+      {/* Body */}
+      {expanded && (
+        <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Clause text */}
+          <div style={{ background: riskBg[risk.severity], borderRadius: 7, padding: '8px 12px', fontSize: 12, fontStyle: 'italic', color: 'var(--text-primary)', lineHeight: 1.5, borderLeft: `2px solid ${cfg.border}` }}>
+            "{risk.clause_text}"
+          </div>
+          {/* Explanation */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Why it's risky</div>
+            <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.55 }}>{risk.explanation}</div>
+          </div>
+          {/* Recommendation */}
+          <div style={{ background: 'var(--accent-bg)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--accent)', fontWeight: 600, display: 'flex', gap: 6 }}>
+            <ShieldCheck size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+            {risk.recommendation}
+          </div>
+          {/* Comment */}
+          <div style={{ paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
+              <MessageSquare size={11} /> Internal note (persisted)
+            </div>
+            <input
+              type="text"
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              onBlur={handleBlur}
+              onKeyDown={e => { if (e.key === 'Enter') handleBlur(); }}
+              placeholder="Add a review note for this clause…"
+              className="input"
+              style={{ fontSize: 12 }}
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Score Ring ────────────────────────────────────────────────────────────────
+
+const ScoreRing: React.FC<{ score: number }> = ({ score }) => {
+  const color = score >= 70 ? 'var(--risk-high-text)' : score >= 40 ? 'var(--risk-med-text)' : 'var(--risk-low-text)';
+  const label = score >= 70 ? 'High Risk' : score >= 40 ? 'Medium Risk' : 'Low Risk';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px' }}>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Overall Risk Score</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color, marginTop: 2 }}>{score} / 100</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{label}</div>
+      </div>
+      <svg width={56} height={56} viewBox="0 0 56 56">
+        <circle cx={28} cy={28} r={22} fill="none" stroke="var(--border)" strokeWidth={5} />
+        <circle cx={28} cy={28} r={22} fill="none" stroke={color} strokeWidth={5}
+          strokeDasharray={138} strokeDashoffset={138 - (138 * score) / 100}
+          strokeLinecap="round" transform="rotate(-90 28 28)" />
+        <text x={28} y={32} textAnchor="middle" fontSize={12} fontWeight={700} fill={color}>{score}</text>
+      </svg>
+    </div>
+  );
+};
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+export const AnalysisPage: React.FC = () => {
+  const { contractId } = useParams<{ contractId?: string }>();
+  const navigate = useNavigate();
+
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [selectedId, setSelectedId] = useState<string>(contractId || '');
+  const [activeMode, setActiveMode] = useState('Similarity Search');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [risks, setRisks] = useState<RiskFinding[]>([]);
+  const [score, setScore] = useState<number | null>(null);
+  const [summary, setSummary] = useState('');
+  const [error, setError] = useState('');
+  const [annotations, setAnnotations] = useState<Record<number, { flagged: boolean; note: string }>>({});
+
+  // Load contract list for selector
+  useEffect(() => {
+    listContracts().then(r => {
+      const indexed = r.contracts.filter(c => c.status === 'indexed');
+      setContracts(indexed);
+      if (!selectedId && indexed.length > 0) {
+        setSelectedId(indexed[0].id);
+      }
+    }).catch(console.error);
+  }, []);
+
+  // Load contract details and annotations when selectedId changes
+  useEffect(() => {
+    if (!selectedId) return;
+    getContract(selectedId).then(setContract).catch(console.error);
+    getAnnotations(selectedId).then(r => {
+      const map: Record<number, { flagged: boolean; note: string }> = {};
+      (r.annotations || []).forEach((a: any) => {
+        map[a.clause_index] = { flagged: Boolean(a.flagged), note: a.note };
+      });
+      setAnnotations(map);
+    }).catch(console.error);
+
+    setRisks([]); setScore(null); setSummary(''); setError('');
+  }, [selectedId]);
+
+  // Sync URL param
+  useEffect(() => {
+    if (contractId && contractId !== selectedId) {
+      setSelectedId(contractId);
+    }
+  }, [contractId]);
+
+  const handleSaveAnnotation = async (clauseIndex: number, flagged: boolean, note: string) => {
+    setAnnotations(prev => ({
+      ...prev,
+      [clauseIndex]: { flagged, note }
+    }));
+    if (selectedId) {
+      await saveAnnotation(selectedId, clauseIndex, flagged, note).catch(console.error);
+    }
+  };
+
+  const runAnalysis = useCallback(async () => {
+    if (!selectedId) return;
+    setAnalyzing(true);
+    setError('');
+    setRisks([]); setScore(null); setSummary('');
+    try {
+      const result = await analyzeContract(selectedId, activeMode);
+      setRisks(result.risks);
+      setScore(result.overall_score);
+      setSummary(result.summary);
+
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Analysis failed';
+      setError(msg);
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [selectedId, activeMode]);
+
+  const pane: React.CSSProperties = { overflow: 'auto', height: '100%', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Sub-header */}
-      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--accent-bg)', border: '1px solid var(--border)', borderRadius: 7, padding: '4px 10px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
-            <FileText size={13} />{activeSample}
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>·</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Strategy: {activeMode}</span>
+      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          <FileText size={14} color="var(--accent)" style={{ flexShrink: 0 }} />
+          {/* Contract selector */}
+          <select
+            value={selectedId}
+            onChange={e => { setSelectedId(e.target.value); navigate(`/analysis/${e.target.value}`); }}
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer', maxWidth: 280 }}
+          >
+            {contracts.length === 0 && <option value="">No indexed contracts — upload one first</option>}
+            {contracts.map(c => (
+              <option key={c.id} value={c.id}>{c.filename} ({c.contract_type})</option>
+            ))}
+          </select>
+          {contract && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {contract.parties !== 'Undetected Parties' ? contract.parties : ''}
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={runAnalysis} disabled={loading} className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}>
-            <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> Re-Analyze
-          </button>
-          <button className="btn-primary" style={{ fontSize: 12, padding: '5px 12px' }}>
-            <Download size={13} /> Export PDF
-          </button>
-        </div>
+
+        {/* Action button */}
+        <button
+          onClick={runAnalysis}
+          disabled={analyzing || !selectedId}
+          className="btn-primary"
+          style={{ opacity: analyzing || !selectedId ? .6 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          {analyzing ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
+          {analyzing ? 'Analyzing Risks…' : 'Run Risk Analysis'}
+        </button>
       </div>
 
       {/* Dual-pane */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden', borderTop: 'none' }}>
-        {/* Left pane — original doc */}
-        <div style={{ ...pane, background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Original Document</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="badge-risk-high">High</span>
-              <span className="badge-risk-med">Med</span>
-              <span className="badge-risk-low">Low</span>
-            </div>
-          </div>
-
-          <div className="card" style={{ borderRadius: 10, padding: '18px 20px', fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>MUTUAL NON-DISCLOSURE AGREEMENT</div>
-
-            <p>
-              This Mutual Non-Disclosure Agreement ("Agreement") is entered into by and between{' '}
-              <mark style={{ background: 'var(--risk-low-bg)', color: 'var(--risk-low-text)', padding: '1px 4px', borderRadius: 4, fontWeight: 600 }}>
-                Apex Innovations Inc. &amp; Beta Technologies LLC
-              </mark>{' '}
-              effective as of August 15, 2025.
-            </p>
-
-            <div style={{ background: 'var(--risk-high-bg)', borderLeft: '3px solid var(--risk-high-text)', borderRadius: '0 6px 6px 0', padding: '10px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: 'var(--risk-high-text)', marginBottom: 4 }}>
-                <AlertTriangle size={12} /> High Risk — Unilateral Termination
+      {contracts.length > 0 && (
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden' }}>
+          {/* Left pane — raw text */}
+          <div style={{ ...pane, background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Contract Text</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Severity Legend:</span>
+                <span className="badge-risk-high">High</span>
+                <span className="badge-risk-med">Med</span>
+                <span className="badge-risk-low">Low</span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--risk-high-text)', opacity: .9 }}>"Either party may terminate this Agreement immediately upon written notice without penalty…"</p>
             </div>
 
-            <div style={{ background: 'var(--risk-med-bg)', borderLeft: '3px solid var(--risk-med-text)', borderRadius: '0 6px 6px 0', padding: '10px 14px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--risk-med-text)', marginBottom: 4 }}>Medium Risk — Indemnification Cap</div>
-              <p style={{ fontSize: 12, color: 'var(--risk-med-text)', opacity: .9 }}>"Liability cap under this Agreement shall not exceed total fees paid in preceding six (6) months…"</p>
+            <div className="card" style={{ borderRadius: 10, padding: '16px 18px', fontSize: 12, lineHeight: 1.75, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', flex: 1 }}>
+              {contract?.raw_text
+                ? contract.raw_text.slice(0, 6000) + (contract.raw_text.length > 6000 ? '\n\n[…truncated for display]' : '')
+                : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Select a contract to view its text.</span>
+              }
             </div>
-
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Confidential Information refers to proprietary information, technical data, trade secrets, and software code…</p>
-          </div>
-        </div>
-
-        {/* Right pane — analysis */}
-        <div style={{ ...pane, background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Risk score summary */}
-          <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>Overall Risk Index</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1, margin: '4px 0' }}>25 / 100</div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--risk-low-text)' }}>Low Risk Contract</div>
-            </div>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', border: '3px solid var(--risk-low-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: 'var(--risk-low-text)' }}>25%</div>
           </div>
 
-          {/* Mode selector */}
-          <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 9, padding: 4, display: 'flex', gap: 2 }}>
-            {MODES.map(({ id, icon: Icon }) => (
-              <button key={id}
-                onClick={() => setActiveMode(id)}
-                style={{
-                  flex: 1, padding: '6px 4px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, transition: 'all .12s',
-                  background: activeMode === id ? 'var(--bg-surface)' : 'transparent',
-                  color: activeMode === id ? 'var(--accent)' : 'var(--text-muted)',
-                  boxShadow: activeMode === id ? 'var(--shadow-card)' : 'none',
-                }}
-              >
-                <Icon size={12} /><span style={{ display: 'none' }}>{id}</span>
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -10 }}>{activeMode}</div>
-
-          {/* Query bar */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="text" value={queryText} onChange={e => setQueryText(e.target.value)} placeholder="Ask about clauses…" className="input" style={{ flex: 1 }} />
-            <button onClick={runAnalysis} className="btn-primary" style={{ padding: '7px 16px', flexShrink: 0 }}>Analyze</button>
-          </div>
-
-          {/* Loading skeleton */}
-          {loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[88, 112, 96].map(h => <div key={h} className="skeleton" style={{ height: h, borderRadius: 10 }} />)}
-            </div>
-          )}
-
-          {/* Results */}
-          {!loading && response && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {response.results.map((doc, idx) => (
-                <div key={idx} className="card" style={{ borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span className="badge-risk-low">Low Risk</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Clause #{idx + 1}</span>
-                    </div>
-                    <button
-                      onClick={() => setFlaggedClauses(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
-                        padding: '3px 10px', borderRadius: 6, border: '1px solid', cursor: 'pointer', transition: 'all .12s',
-                        background: flaggedClauses[idx] ? 'var(--risk-high-bg)' : 'var(--bg-subtle)',
-                        color: flaggedClauses[idx] ? 'var(--risk-high-text)' : 'var(--text-muted)',
-                        borderColor: flaggedClauses[idx] ? 'var(--risk-high-border)' : 'var(--border)',
-                      }}
-                    >
-                      <Flag size={11} />{flaggedClauses[idx] ? 'Flagged' : 'Flag'}
-                    </button>
-                  </div>
-
-                  <p style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>{doc.content}</p>
-
-                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 5 }}>
-                      <MessageSquare size={11} /> Internal Note
-                    </div>
-                    <input
-                      type="text"
-                      value={clauseComments[idx] || ''}
-                      onChange={e => setClauseComments(prev => ({ ...prev, [idx]: e.target.value }))}
-                      placeholder="Add a review note…"
-                      className="input"
-                      style={{ fontSize: 12 }}
-                    />
-                  </div>
-                </div>
+          {/* Right pane — analysis */}
+          <div style={{ ...pane }}>
+            {/* Mode selector */}
+            <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 9, padding: 4, display: 'flex', gap: 2 }}>
+              {MODES.map(({ id, icon: Icon }) => (
+                <button key={id}
+                  onClick={() => setActiveMode(id)}
+                  title={id}
+                  style={{
+                    flex: 1, padding: '6px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 3, transition: 'all .12s',
+                    background: activeMode === id ? 'var(--bg-surface)' : 'transparent',
+                    color: activeMode === id ? 'var(--accent)' : 'var(--text-muted)',
+                    boxShadow: activeMode === id ? 'var(--shadow-card)' : 'none',
+                  }}
+                >
+                  <Icon size={12} />
+                  <span style={{ display: 'none' }}>{id}</span>
+                </button>
               ))}
             </div>
-          )}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -8 }}>{activeMode}</div>
+
+            {/* Error */}
+            {error && (
+              <div style={{ background: 'var(--risk-high-bg)', border: '1px solid var(--risk-high-border)', borderRadius: 9, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--risk-high-text)', fontWeight: 600 }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />{error}
+              </div>
+            )}
+
+            {/* Idle prompt */}
+            {risks.length === 0 && !analyzing && !error && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                <Sparkles size={28} color="var(--accent)" />
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>No analysis run yet</div>
+                <div style={{ fontSize: 12, maxWidth: 280 }}>
+                  Click <strong>Run Risk Analysis</strong> above to extract clause-by-clause risks using {activeMode}.
+                </div>
+              </div>
+            )}
+
+            {/* Loading */}
+            {analyzing && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--text-muted)' }}>
+                <Loader2 size={24} color="var(--accent)" style={{ animation: 'spin 1s linear infinite' }} />
+                <div style={{ fontSize: 12, fontWeight: 600 }}>Analyzing contract with Groq AI…</div>
+              </div>
+            )}
+
+            {/* Analysis Results */}
+            {risks.length > 0 && !analyzing && (
+              <>
+                {score !== null && <ScoreRing score={score} />}
+
+                {summary && (
+                  <div className="card" style={{ borderRadius: 10, padding: '12px 14px', fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 4 }}>Executive Summary</div>
+                    {summary}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Flagged Clause Risks ({risks.length})
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {risks.map((r, i) => (
+                    <RiskCard
+                      key={i}
+                      risk={r}
+                      index={i}
+                      annotation={annotations[i]}
+                      onSaveAnnotation={handleSaveAnnotation}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {contracts.length === 0 && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 40, textAlign: 'center' }}>
+          <FileText size={32} color="var(--text-muted)" />
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>No contracts uploaded yet</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 360 }}>
+            Upload a PDF contract from the Contracts tab to enable clause risk analysis.
+          </div>
+          <button className="btn-primary" onClick={() => navigate('/contracts')}>Go to Contracts</button>
+        </div>
+      )}
+
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );

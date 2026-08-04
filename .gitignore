@@ -20,3 +20,13 @@ chroma_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database & Runtime Uploads
+*.db
+uploads/
+
+# Node
+node_modules/
+dist/
+build/
+

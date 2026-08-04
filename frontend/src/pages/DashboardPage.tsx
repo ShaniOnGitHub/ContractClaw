@@ -1,135 +1,158 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, AlertTriangle, Clock, CheckCircle2, ArrowRight, UploadCloud, GitCompare, ShieldCheck } from 'lucide-react';
+import { FileText, AlertTriangle, Clock, BarChart2, UploadCloud, ShieldCheck } from 'lucide-react';
+import { getDashboardMetrics, listContracts } from '../services/api';
+import type { DashboardMetrics, Contract } from '../services/api';
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { padding: '28px 32px', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 28 },
-  header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 },
-  subtitle: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 },
-  metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 },
-  metricCard: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px', boxShadow: 'var(--shadow-card)' },
-  metricLabel: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 10 },
-  metricValue: { fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 },
-  metricNote: { fontSize: 11, fontWeight: 600, marginTop: 8 },
-  quickGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 },
-  table: { width: '100%', borderCollapse: 'collapse' as const },
-};
+const riskClass: Record<string, string> = { Low: 'badge-risk-low', Medium: 'badge-risk-med', High: 'badge-risk-high' };
 
-const recentActivity = [
-  { id: '1', filename: 'sample_nda.pdf',             type: 'NDA',               risk: 'Low',    score: 25, date: '2026-08-03' },
-  { id: '2', filename: 'sample_employment.pdf',       type: 'Employment',        risk: 'Medium', score: 55, date: '2026-08-03' },
-  { id: '3', filename: 'sample_service_agreement.pdf',type: 'Service Agreement', risk: 'High',   score: 85, date: '2026-08-02' },
-  { id: '4', filename: 'vendor_msa_v2.pdf',           type: 'MSA',               risk: 'High',   score: 90, date: '2026-08-01' },
-];
-
-const riskClass: Record<string, string> = {
-  Low:    'badge-risk-low',
-  Medium: 'badge-risk-med',
-  High:   'badge-risk-high',
-};
+const scoreToRisk = (score: number) =>
+  score >= 70 ? 'High' : score >= 40 ? 'Medium' : 'Low';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [m, c] = await Promise.all([getDashboardMetrics(), listContracts()]);
+        setMetrics(m);
+        setContracts(c.contracts.slice(0, 5));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const isNewAccount = !loading && metrics && metrics.total_contracts === 0;
+
+  const metricCards = metrics
+    ? [
+        { label: 'Total Analyzed',      icon: <FileText size={14} color="var(--accent)" />,             value: String(metrics.total_contracts),  note: 'Total contracts in your library',     noteColor: 'var(--text-muted)' },
+        { label: 'High Risk Contracts', icon: <AlertTriangle size={14} color="var(--risk-high-text)" />, value: String(metrics.high_risk_count),  note: 'Contracts with risk score ≥ 70',       noteColor: 'var(--risk-high-text)' },
+        { label: 'Pending Review',      icon: <Clock size={14} color="var(--risk-med-text)" />,          value: String(metrics.pending_review),   note: 'Queued for automated indexing',      noteColor: 'var(--text-muted)' },
+        { label: 'Avg Risk Score',      icon: <BarChart2 size={14} color="var(--risk-low-text)" />,      value: String(metrics.avg_risk_score),   note: 'Average risk index across library',   noteColor: 'var(--text-muted)' },
+      ]
+    : [];
 
   return (
-    <div style={styles.page}>
-      {/* Header row */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Contract Intelligence Dashboard</h1>
-          <p style={styles.subtitle}>Real-time overview of parsed legal contracts, risk scores, and retriever benchmarks.</p>
-        </div>
-        <button className="btn-primary" onClick={() => navigate('/upload')}>
-          <UploadCloud size={14} /> Upload Contract
-        </button>
+    <div style={{ padding: '28px 32px', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {/* Header */}
+      <div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Dashboard Overview</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+          High-level overview of parsed contracts, risk scores, and recent audits.
+        </p>
       </div>
 
-      {/* Metrics */}
-      <div style={styles.metricsGrid}>
-        {[
-          { label: 'Total Analyzed',       icon: <FileText size={14} color="var(--accent)" />, value: '128', note: '↑ +12% this month',    noteColor: 'var(--accent)' },
-          { label: 'High Risk Contracts',  icon: <AlertTriangle size={14} color="var(--risk-high-text)" />, value: '14', note: 'Action required: 3',  noteColor: 'var(--risk-high-text)' },
-          { label: 'Pending Review',       icon: <Clock size={14} color="var(--risk-med-text)" />, value: '3',   note: 'Queued for review',    noteColor: 'var(--text-muted)' },
-          { label: 'Avg Turnaround',       icon: <CheckCircle2 size={14} color="var(--risk-low-text)" />, value: '1.2s', note: 'Vector indexing',    noteColor: 'var(--risk-low-text)' },
-        ].map(m => (
-          <div key={m.label} style={styles.metricCard}>
-            <div style={styles.metricLabel}><span>{m.label}</span>{m.icon}</div>
-            <div style={styles.metricValue}>{m.value}</div>
-            <div style={{ ...styles.metricNote, color: m.noteColor }}>{m.note}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick Launch */}
-      <div style={styles.quickGrid}>
-        <div
-          onClick={() => navigate('/analysis')}
-          style={{ background: 'var(--accent)', borderRadius: 12, padding: '24px', cursor: 'pointer', boxShadow: 'var(--shadow-md)', transition: 'opacity .15s' }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = '.9')}
-          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,.75)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-            <ShieldCheck size={14} /> Clause Analysis
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 6 }}>Interactive Contract Risk Reviewer</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', marginBottom: 18 }}>Color-coded risk clauses with dual-pane document view and metadata filters.</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#fff' }}>Launch Analysis <ArrowRight size={13} /></div>
+      {/* Loading State */}
+      {loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+          {[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 96, borderRadius: 12 }} />)}
         </div>
+      )}
 
-        <div
-          onClick={() => navigate('/compare')}
-          className="card"
-          style={{ borderRadius: 12, padding: '24px', cursor: 'pointer', transition: 'border-color .15s' }}
-          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
-          onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-            <GitCompare size={14} /> Benchmark Lab
+      {/* Empty State for New Account */}
+      {isNewAccount && (
+        <div className="card" style={{
+          borderRadius: 16, padding: '48px 32px', textAlign: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+          background: 'var(--bg-surface)', border: '1px border var(--border)'
+        }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={28} color="var(--accent)" />
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Compare Retriever Modes</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 18 }}>Run Cosine Similarity vs MMR Diversity side-by-side to inspect retrieval differences.</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>Open Benchmark Lab <ArrowRight size={13} /></div>
-        </div>
-      </div>
-
-      {/* Recent Activity Table */}
-      <div className="card" style={{ borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Recent Contract Audits</div>
-          <button onClick={() => navigate('/contracts')} style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>
-            View All →
+          <div style={{ maxWidth: 440 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>No contracts uploaded yet</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Upload your first contract PDF to run an automated AI risk breakdown, extract key clauses, and generate risk scores.
+            </p>
+          </div>
+          <button className="btn-primary" onClick={() => navigate('/upload')} style={{ marginTop: 8, padding: '10px 24px', fontSize: 13 }}>
+            <UploadCloud size={16} /> Upload Your First Contract
           </button>
         </div>
-        <table style={styles.table}>
-          <thead>
-            <tr style={{ background: 'var(--bg-subtle)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>
-              {['Contract Name', 'Type', 'Risk', 'Score', 'Date', ''].map(h => (
-                <th key={h} style={{ padding: '10px 18px', textAlign: 'left', borderBottom: '1px solid var(--border)' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {recentActivity.map(row => (
-              <tr key={row.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background .1s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <td style={{ padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                  <FileText size={14} color="var(--accent)" />{row.filename}
-                </td>
-                <td style={{ padding: '13px 18px', fontSize: 12, color: 'var(--text-secondary)' }}>{row.type}</td>
-                <td style={{ padding: '13px 18px' }}><span className={riskClass[row.risk]}>{row.risk}</span></td>
-                <td style={{ padding: '13px 18px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{row.score}/100</td>
-                <td style={{ padding: '13px 18px', fontSize: 12, color: 'var(--text-muted)' }}>{row.date}</td>
-                <td style={{ padding: '13px 18px', textAlign: 'right' }}>
-                  <button onClick={() => navigate('/analysis')} style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>Analyze →</button>
-                </td>
+      )}
+
+      {/* Metrics Cards (When contracts exist) */}
+      {!loading && !isNewAccount && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+          {metricCards.map(m => (
+            <div key={m.label} className="card" style={{ borderRadius: 12, padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 10 }}>
+                <span>{m.label}</span>{m.icon}
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{m.value}</div>
+              <div style={{ fontSize: 11, fontWeight: 500, marginTop: 8, color: m.noteColor }}>{m.note}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent Contracts Table */}
+      {!loading && !isNewAccount && (
+        <div className="card" style={{ borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Recent Contract Audits</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Click any row to open full clause risk analysis</div>
+            </div>
+            <button onClick={() => navigate('/contracts')} style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer' }}>View All Contracts →</button>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-subtle)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>
+                {['Contract', 'Type', 'Parties', 'Status', 'Risk Score', ''].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {contracts.map(row => (
+                <tr key={row.id}
+                  onClick={() => navigate(`/analysis/${row.id}`)}
+                  style={{ borderBottom: '1px solid var(--border)', transition: 'background .1s', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                    <FileText size={13} color="var(--accent)" />{row.filename}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-secondary)' }}>{row.contract_type || '—'}</td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.parties || '—'}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, border: '1px solid',
+                      ...(row.status === 'indexed'
+                        ? { background: 'var(--risk-low-bg)', color: 'var(--risk-low-text)', borderColor: 'var(--risk-low-border)' }
+                        : row.status === 'error'
+                        ? { background: 'var(--risk-high-bg)', color: 'var(--risk-high-text)', borderColor: 'var(--risk-high-border)' }
+                        : { background: 'var(--bg-subtle)', color: 'var(--text-muted)', borderColor: 'var(--border)' })
+                    }}>{row.status}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {row.risk_score > 0 ? (
+                      <span className={riskClass[scoreToRisk(row.risk_score)]}>
+                        {scoreToRisk(row.risk_score)} ({row.risk_score}/100)
+                      </span>
+                    ) : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>Open Analysis →</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
