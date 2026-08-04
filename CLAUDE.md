@@ -9,11 +9,11 @@ ContractClaw is an interactive Streamlit application that acts both as a contrac
 5. Parent Document Retriever (Small-to-Big Retrieval)
 
 ## Commands
-- Run Streamlit App: `streamlit run app.py`
+- Run Streamlit App: `streamlit run streamlit_app.py`
 - Install Dependencies: `pip install -r requirements.txt`
 
 ## Core Architecture
-- `app.py`: Main Streamlit app entry point.
+- `streamlit_app.py`: Main Streamlit app entry point.
 - `config.py`: Centralized configuration, API key setup, ChromaDB paths.
 - `utils/pdf_parser.py`: PDF loading via `pdfplumber`/`PyPDF2` + Metadata extraction.
 - `utils/text_splitters.py`: Recursive character splitters (Parent: 2000, Child: 400).
