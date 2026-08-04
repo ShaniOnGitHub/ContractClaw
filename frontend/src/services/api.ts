@@ -256,3 +256,83 @@ export const saveAnnotation = async (
   return res.data;
 };
 
+export interface RedlinePosition {
+  proposed_text: string;
+  diff_html: string;
+  rationale: string;
+}
+
+export interface RedlineResponse {
+  clause_type: string;
+  original_text: string;
+  positions: {
+    balanced: RedlinePosition;
+    buyer_friendly: RedlinePosition;
+    vendor_friendly: RedlinePosition;
+  };
+}
+
+export interface PlaybookRule {
+  rule_id: string;
+  category: string;
+  description: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  disallowed_phrases?: string[];
+  preferred_standard?: string;
+}
+
+export interface Playbook {
+  id: string;
+  name: string;
+  description: string;
+  rules: PlaybookRule[];
+}
+
+export interface PlaybookCheckResult {
+  compliance_score: number;
+  status: 'PASS' | 'WARNING' | 'FAIL';
+  total_rules_checked: number;
+  violations_count: number;
+  violations: Array<{
+    rule_id: string;
+    category: string;
+    severity: string;
+    description: string;
+    matched_disallowed: string[];
+    preferred_standard?: string;
+  }>;
+}
+
+/** Generate AI redlines for a clause */
+export const generateRedlines = async (
+  contractId: string,
+  clauseCategory: string,
+  originalText: string,
+): Promise<RedlineResponse> => {
+  const res = await apiClient.post(`${V1}/redline/generate`, {
+    contract_id: contractId,
+    clause_category: clauseCategory,
+    original_text: originalText,
+  });
+  return res.data;
+};
+
+/** Get list of playbooks */
+export const getPlaybooks = async (): Promise<{ playbooks: Playbook[] }> => {
+  const res = await apiClient.get(`${V1}/playbooks`);
+  return res.data;
+};
+
+/** Create custom playbook */
+export const createPlaybook = async (name: string, description: string, rules: PlaybookRule[]): Promise<Playbook> => {
+  const res = await apiClient.post(`${V1}/playbooks`, { name, description, rules });
+  return res.data;
+};
+
+/** Check contract against playbook rules */
+export const checkPlaybook = async (contractId: string, playbookId?: string): Promise<PlaybookCheckResult> => {
+  const res = await apiClient.post(`${V1}/analysis/playbook-check`, { contract_id: contractId, playbook_id: playbookId });
+  return res.data;
+};
+
+

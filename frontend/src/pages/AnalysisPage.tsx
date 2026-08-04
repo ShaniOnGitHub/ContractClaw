@@ -5,8 +5,9 @@ import {
   Filter, Layers, AlertTriangle, ShieldCheck,
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
-import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation } from '../services/api';
+import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation, generateRedlines, RedlineResponse } from '../services/api';
 import type { Contract, RiskFinding } from '../services/api';
+import { RedlineModal } from '../components/RedlineModal';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -37,12 +38,14 @@ interface RiskCardProps {
   index: number;
   annotation?: { flagged: boolean; note: string };
   onSaveAnnotation: (index: number, flagged: boolean, note: string) => void;
+  onRedline: (risk: RiskFinding) => void;
 }
 
-const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnnotation }) => {
+const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnnotation, onRedline }) => {
   const [flagged, setFlagged] = useState(annotation?.flagged || false);
   const [comment, setComment] = useState(annotation?.note || '');
   const [expanded, setExpanded] = useState(index < 2);
+
 
   useEffect(() => {
     if (annotation) {
@@ -111,11 +114,20 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Why it's risky</div>
             <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.55 }}>{risk.explanation}</div>
           </div>
-          {/* Recommendation */}
-          <div style={{ background: 'var(--accent-bg)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--accent)', fontWeight: 600, display: 'flex', gap: 6 }}>
-            <ShieldCheck size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-            {risk.recommendation}
+          {/* Recommendation & Redline Button */}
+          <div style={{ background: 'var(--accent-bg)', borderRadius: 7, padding: '8px 12px', fontSize: 12, color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ShieldCheck size={13} style={{ flexShrink: 0 }} />
+              <span>{risk.recommendation}</span>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onRedline(risk); }}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-lg shadow-sm transition-all flex items-center space-x-1"
+            >
+              <span>✨ Redline Clause</span>
+            </button>
           </div>
+
           {/* Comment */}
           <div style={{ paddingTop: 6, borderTop: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
@@ -178,6 +190,23 @@ export const AnalysisPage: React.FC = () => {
   const [summary, setSummary] = useState('');
   const [error, setError] = useState('');
   const [annotations, setAnnotations] = useState<Record<number, { flagged: boolean; note: string }>>({});
+  const [redlineModalOpen, setRedlineModalOpen] = useState(false);
+  const [redlineData, setRedlineData] = useState<RedlineResponse | null>(null);
+  const [redlineLoading, setRedlineLoading] = useState(false);
+
+  const handleOpenRedline = async (risk: RiskFinding) => {
+    setRedlineModalOpen(true);
+    setRedlineLoading(true);
+    try {
+      const res = await generateRedlines(selectedId || 'demo', risk.risk_type, risk.clause_text);
+      setRedlineData(res);
+    } catch (err) {
+      console.error("Failed to generate redline", err);
+    } finally {
+      setRedlineLoading(false);
+    }
+  };
+
 
   // Load contract list for selector
   useEffect(() => {
@@ -376,6 +405,7 @@ export const AnalysisPage: React.FC = () => {
                       index={i}
                       annotation={annotations[i]}
                       onSaveAnnotation={handleSaveAnnotation}
+                      onRedline={handleOpenRedline}
                     />
                   ))}
                 </div>
@@ -396,7 +426,15 @@ export const AnalysisPage: React.FC = () => {
         </div>
       )}
 
+      <RedlineModal
+        isOpen={redlineModalOpen}
+        onClose={() => setRedlineModalOpen(false)}
+        redlineData={redlineData}
+        loading={redlineLoading}
+      />
+
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+
 };

@@ -44,6 +44,13 @@ from retrievers.multi_query_retriever import multi_query_search
 from retrievers.self_query_retriever import self_query_search
 from retrievers.parent_doc_retriever import ContractParentDocumentRetriever
 from services.risk_analyzer import analyze_contract_risks
+from services.redlining import RedlineGenerator
+from services.playbooks import PlaybookEngine
+from services.search import PortfolioSearchEngine
+from database import (
+    create_playbook, list_playbooks, save_redline_history
+)
+
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 
@@ -574,7 +581,82 @@ def save_api_key(req: ApiKeyRequest, current_user: Dict[str, Any] = Depends(get_
     return {"message": "API key saved successfully."}
 
 
+# ── Redlining & Playbooks ──────────────────────────────────────────────────────
+
+class RedlineRequest(BaseModel):
+    contract_id: Optional[str] = "contract_demo"
+    clause_category: str
+    original_text: str
+
+class CreatePlaybookRequest(BaseModel):
+    name: str
+    description: str = ""
+    rules: List[Dict[str, Any]]
+
+class PlaybookCheckRequest(BaseModel):
+    contract_id: str
+    playbook_id: Optional[str] = None
+
+class PortfolioSearchRequest(BaseModel):
+    query: str
+    contract_type: Optional[str] = "all"
+    min_risk_score: Optional[int] = None
+
+
+@v1.post("/redline/generate")
+def generate_redlines_endpoint(req: RedlineRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    result = RedlineGenerator.generate_redlines(req.clause_category, req.original_text)
+    if req.contract_id:
+        # Save balanced proposal to history
+        balanced_text = result.get("positions", {}).get("balanced", {}).get("proposed_text", "")
+        rationale = result.get("positions", {}).get("balanced", {}).get("rationale", "")
+        save_redline_history(req.contract_id, req.clause_category, req.original_text, balanced_text, "balanced", rationale)
+    return result
+
+
+@v1.get("/playbooks")
+def get_playbooks_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_pbs = list_playbooks(user_id=current_user["id"])
+    all_pbs = PlaybookEngine.DEFAULT_PLAYBOOKS + user_pbs
+    return {"playbooks": all_pbs}
+
+
+@v1.post("/playbooks")
+def create_playbook_endpoint(req: CreatePlaybookRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    if not req.name.strip():
+        raise HTTPException(400, "Playbook name is required.")
+    return create_playbook(current_user["id"], req.name, req.description, req.rules)
+
+
+@v1.post("/analysis/playbook-check")
+def check_contract_playbook_endpoint(req: PlaybookCheckRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    contract = get_contract(req.contract_id, user_id=current_user["id"])
+    if not contract:
+        raise HTTPException(404, "Contract not found.")
+
+    raw_text = contract.get("raw_text", "")
+    sample_clauses = [{"text": raw_text}]
+
+    # Load rules
+    rules = PlaybookEngine.DEFAULT_PLAYBOOKS[0]["rules"]
+    if req.playbook_id:
+        all_pbs = list_playbooks(current_user["id"]) + PlaybookEngine.DEFAULT_PLAYBOOKS
+        for pb in all_pbs:
+            if pb.get("id") == req.playbook_id:
+                rules = pb.get("rules", [])
+                break
+
+    return PlaybookEngine.evaluate_contract(sample_clauses, rules)
+
+
+@v1.post("/search/portfolio")
+def search_portfolio_endpoint(req: PortfolioSearchRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    results = PortfolioSearchEngine.search_contracts(req.query, req.contract_type, req.min_risk_score)
+    return {"query": req.query, "count": len(results), "results": results}
+
+
 app.include_router(v1)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -11,6 +11,7 @@ import { UploadPage }         from './pages/UploadPage';
 import { AnalysisPage }       from './pages/AnalysisPage';
 import { HistoryPage }        from './pages/HistoryPage';
 import { SettingsPage }       from './pages/SettingsPage';
+import { PlaybooksPage }      from './pages/PlaybooksPage';
 import { LoginPage }          from './pages/LoginPage';
 
 const ProtectedLayout: React.FC = () => {
@@ -32,6 +33,7 @@ const ProtectedLayout: React.FC = () => {
             <Route path="/upload"                element={<UploadPage />} />
             <Route path="/analysis/:contractId"  element={<AnalysisPage />} />
             <Route path="/analysis"              element={<AnalysisPage />} />
+            <Route path="/playbooks"             element={<PlaybooksPage />} />
             <Route path="/history"               element={<HistoryPage />} />
             <Route path="/settings"              element={<SettingsPage />} />
             <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
@@ -41,6 +43,7 @@ const ProtectedLayout: React.FC = () => {
     </div>
   );
 };
+
 
 export const App: React.FC = () => (
   <ThemeProvider>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Settings, ChevronLeft, ChevronRight,
-  UserCheck, ShieldCheck, LogOut
+  UserCheck, ShieldCheck, LogOut, BookOpen
 } from 'lucide-react';
 import { getCredits, getMe } from '../services/api';
 import type { UserProfile } from '../services/api';
@@ -44,8 +44,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const nav = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/contracts', label: 'Contracts', icon: FileText },
+    { to: '/playbooks', label: 'Playbooks', icon: BookOpen },
     { to: '/settings',  label: 'Settings',  icon: Settings },
   ];
+
 
   const maxCredits = 15;
   const creditsDisplay = credits ?? user?.credits_remaining ?? maxCredits;

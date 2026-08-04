@@ -59,6 +59,28 @@ CREATE TABLE IF NOT EXISTS analyses (
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
 
+CREATE TABLE IF NOT EXISTS playbooks (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    description     TEXT DEFAULT '',
+    rules_json      TEXT NOT NULL,
+    is_default      INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS redline_history (
+    id              TEXT PRIMARY KEY,
+    contract_id     TEXT NOT NULL,
+    clause_category TEXT NOT NULL,
+    original_text   TEXT NOT NULL,
+    proposed_text   TEXT NOT NULL,
+    position        TEXT NOT NULL,
+    rationale       TEXT DEFAULT '',
+    created_at      TEXT NOT NULL
+);
+
+
 CREATE TABLE IF NOT EXISTS clause_annotations (
     id              TEXT PRIMARY KEY,
     contract_id     TEXT NOT NULL,
@@ -536,5 +558,44 @@ def save_user_playbook(
         )
         conn.commit()
     return get_user_playbook(user_id)
+
+
+def create_playbook(user_id: str, name: str, description: str, rules: List[Dict[str, Any]]) -> Dict[str, Any]:
+    playbook_id = f"pb_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    rules_json = json.dumps(rules)
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO playbooks (id, user_id, name, description, rules_json, is_default, created_at)
+               VALUES (?, ?, ?, ?, ?, 0, ?)""",
+            (playbook_id, user_id, name, description, rules_json, now)
+        )
+        conn.commit()
+    return {"id": playbook_id, "user_id": user_id, "name": name, "description": description, "rules": rules, "created_at": now}
+
+
+def list_playbooks(user_id: str) -> List[Dict[str, Any]]:
+    with _connect() as conn:
+        rows = conn.execute("SELECT * FROM playbooks WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+    results = []
+    for r in rows:
+        item = dict(r)
+        item["rules"] = json.loads(item["rules_json"]) if item.get("rules_json") else []
+        results.append(item)
+    return results
+
+
+def save_redline_history(contract_id: str, clause_category: str, original_text: str, proposed_text: str, position: str, rationale: str = "") -> Dict[str, Any]:
+    redline_id = f"red_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO redline_history (id, contract_id, clause_category, original_text, proposed_text, position, rationale, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (redline_id, contract_id, clause_category, original_text, proposed_text, position, rationale, now)
+        )
+        conn.commit()
+    return {"id": redline_id, "contract_id": contract_id, "clause_category": clause_category, "position": position, "created_at": now}
+
 
 
