@@ -192,7 +192,7 @@ def analyze_contract_risks(
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.1,
+            temperature=0.0,
             max_tokens=2048,
             response_format={"type": "json_object"}
         )
@@ -206,7 +206,7 @@ def analyze_contract_risks(
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.1,
+            temperature=0.0,
             max_tokens=2048,
         )
 
@@ -218,24 +218,40 @@ def analyze_contract_risks(
     # Validate and normalise
     if "risks" not in result or not isinstance(result["risks"], list):
         result["risks"] = []
-    if "overall_score" not in result:
-        result["overall_score"] = _compute_fallback_score(result["risks"])
+
+    # Enforce deterministic score based on extracted risks & unlimited liability rules
+    result["overall_score"] = _compute_deterministic_score(result["risks"])
+
     if "summary" not in result:
         result["summary"] = ""
-
-    # Clamp score
-    try:
-        result["overall_score"] = max(0, min(100, int(result["overall_score"])))
-    except Exception:
-        result["overall_score"] = _compute_fallback_score(result["risks"])
 
     return result
 
 
-def _compute_fallback_score(risks: List[Dict]) -> int:
-    """Compute a risk score if the model forgot to include one."""
-    severity_map = {"Low": 20, "Medium": 50, "High": 85}
+def _compute_deterministic_score(risks: List[Dict[str, Any]]) -> int:
+    """Computes a 100% deterministic risk score based on extracted risk severities and unlimited liability rules."""
     if not risks:
         return 0
-    scores = [severity_map.get(r.get("severity", "Low"), 20) for r in risks]
-    return int(sum(scores) / len(scores))
+
+    high_count = sum(1 for r in risks if r.get("severity") == "High")
+    med_count = sum(1 for r in risks if r.get("severity") == "Medium")
+    low_count = sum(1 for r in risks if r.get("severity") == "Low")
+
+    has_unlimited_liability = any(
+        "unlimited liability" in (r.get("clause_text", "") + r.get("explanation", "")).lower() or
+        "uncapped" in (r.get("clause_text", "") + r.get("explanation", "")).lower() or
+        "consequential damages" in (r.get("clause_text", "") + r.get("explanation", "")).lower()
+        for r in risks
+    )
+
+    score = (high_count * 25) + (med_count * 12) + (low_count * 5)
+
+    if has_unlimited_liability:
+        score = max(score, 80)
+    elif high_count >= 1:
+        score = max(score, 70)
+    elif med_count >= 1:
+        score = max(score, 40)
+
+    return min(100, score)
+

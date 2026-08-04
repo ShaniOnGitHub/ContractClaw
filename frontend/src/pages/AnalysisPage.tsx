@@ -83,6 +83,11 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className={cfg.cls}>{risk.severity}</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{risk.risk_type}</span>
+          {risk.grounded_citation && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+              📍 {risk.grounded_citation}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
@@ -131,8 +136,9 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
           {/* Comment */}
           <div style={{ paddingTop: 6, borderTop: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>
-              <MessageSquare size={11} /> Internal note (persisted)
+              <MessageSquare size={11} /> Internal note
             </div>
+
             <input
               type="text"
               value={comment}
@@ -282,13 +288,14 @@ export const AnalysisPage: React.FC = () => {
           <select
             value={selectedId}
             onChange={e => { setSelectedId(e.target.value); navigate(`/analysis/${e.target.value}`); }}
-            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer', maxWidth: 280 }}
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', cursor: 'pointer', maxWidth: 450, minWidth: 260 }}
           >
             {contracts.length === 0 && <option value="">No indexed contracts — upload one first</option>}
             {contracts.map(c => (
               <option key={c.id} value={c.id}>{c.filename} ({c.contract_type})</option>
             ))}
           </select>
+
           {contract && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {contract.parties !== 'Undetected Parties' ? contract.parties : ''}
@@ -426,6 +433,11 @@ export const AnalysisPage: React.FC = () => {
         </div>
       )}
 
+      {/* Legal Disclaimer Footer Banner */}
+      <div style={{ background: 'var(--bg-subtle)', borderTop: '1px solid var(--border)', padding: '8px 20px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', flexShrink: 0 }}>
+        ⚖️ <strong>Legal Disclaimer:</strong> ContractClaw uses AI machine learning pattern matching for legal risk detection and clause analysis. Output is provided for informational and review purposes only and does not constitute formal legal advice.
+      </div>
+
       <RedlineModal
         isOpen={redlineModalOpen}
         onClose={() => setRedlineModalOpen(false)}
@@ -436,5 +448,6 @@ export const AnalysisPage: React.FC = () => {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+
 
 };

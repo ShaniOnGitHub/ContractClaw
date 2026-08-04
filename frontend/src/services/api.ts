@@ -53,8 +53,10 @@ export interface RiskFinding {
   risk_type: string;
   severity: 'Low' | 'Medium' | 'High';
   clause_text: string;
+  grounded_citation?: string;
   explanation: string;
   recommendation: string;
+  suggested_rewrite?: string;
 }
 
 export interface AnalysisResult {
@@ -334,5 +336,23 @@ export const checkPlaybook = async (contractId: string, playbookId?: string): Pr
   const res = await apiClient.post(`${V1}/analysis/playbook-check`, { contract_id: contractId, playbook_id: playbookId });
   return res.data;
 };
+
+export interface ContractDeadline {
+  id: string;
+  contract_id: string;
+  filename?: string;
+  title: string;
+  deadline_date: string;
+  obligation_type: string;
+  summary: string;
+  days_remaining?: number;
+}
+
+/** Get upcoming contractual deadlines & notice windows */
+export const getDeadlines = async (): Promise<{ deadlines: ContractDeadline[] }> => {
+  const res = await apiClient.get(`${V1}/deadlines`);
+  return res.data;
+};
+
 
 

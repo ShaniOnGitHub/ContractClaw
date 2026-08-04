@@ -551,6 +551,12 @@ def dashboard_metrics_endpoint(current_user: Dict[str, Any] = Depends(get_curren
     return get_dashboard_metrics(user_id=current_user["id"])
 
 
+@v1.get("/deadlines")
+def get_deadlines_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    return {"deadlines": get_upcoming_deadlines(user_id=current_user["id"])}
+
+
+
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 @v1.post("/settings/apikey")

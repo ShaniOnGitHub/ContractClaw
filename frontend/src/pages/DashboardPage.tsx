@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, AlertTriangle, Clock, BarChart2, UploadCloud, ShieldCheck } from 'lucide-react';
-import { getDashboardMetrics, listContracts } from '../services/api';
-import type { DashboardMetrics, Contract } from '../services/api';
+import { getDashboardMetrics, listContracts, getDeadlines } from '../services/api';
+import type { DashboardMetrics, Contract, ContractDeadline } from '../services/api';
 
 const riskClass: Record<string, string> = { Low: 'badge-risk-low', Medium: 'badge-risk-med', High: 'badge-risk-high' };
 
@@ -13,14 +13,16 @@ export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [deadlines, setDeadlines] = useState<ContractDeadline[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [m, c] = await Promise.all([getDashboardMetrics(), listContracts()]);
+        const [m, c, d] = await Promise.all([getDashboardMetrics(), listContracts(), getDeadlines()]);
         setMetrics(m);
         setContracts(c.contracts.slice(0, 5));
+        setDeadlines(d.deadlines || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -29,6 +31,7 @@ export const DashboardPage: React.FC = () => {
     };
     load();
   }, []);
+
 
   const isNewAccount = !loading && metrics && metrics.total_contracts === 0;
 
@@ -153,6 +156,45 @@ export const DashboardPage: React.FC = () => {
           </table>
         </div>
       )}
+
+      {/* Upcoming Obligations & Notice Windows Widget */}
+      {!loading && !isNewAccount && (
+        <div className="card" style={{ borderRadius: 12, padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Clock size={16} color="var(--accent)" /> Upcoming Contract Obligations & Deadlines
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Auto-extracted notice windows, renewal dates, and payment schedules</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>{deadlines.length} Active Deadlines</span>
+          </div>
+
+          {deadlines.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '16px 0', textAlign: 'center' }}>
+              No critical renewal or notice deadlines extracted yet. Analyze a contract to extract key obligations automatically.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+              {deadlines.map((d, idx) => (
+                <div key={idx} style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+                      {d.obligation_type || 'Notice'}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--risk-high-text)' }}>
+                      {d.days_remaining !== undefined ? `${d.days_remaining} days left` : d.deadline_date}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{d.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>{d.summary}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
+
 };
