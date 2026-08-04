@@ -63,18 +63,21 @@ export const PlaybooksPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-fade-in p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 28, height: '100%', overflowY: 'auto' }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Legal & Compliance Playbooks</h1>
-          <p className="text-sm text-neutral-500 mt-1">
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-.02em' }}>
+            Legal & Compliance Playbooks
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
             Define mandatory procurement rules, fallback thresholds, and negotiation standards.
           </p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center whitespace-nowrap"
+          className="btn-primary"
+          style={{ padding: '9px 22px', fontSize: 13, whiteSpace: 'nowrap', borderRadius: 'var(--radius)', flexShrink: 0 }}
         >
           + Create Custom Playbook
         </button>
@@ -82,33 +85,42 @@ export const PlaybooksPage: React.FC = () => {
 
       {/* Playbooks Grid */}
       {loading ? (
-        <div className="py-16 text-center text-sm text-neutral-500">Loading enterprise playbooks...</div>
+        <div style={{ padding: '60px 0', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+          Loading enterprise playbooks...
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))', gap: 20 }}>
           {playbooks.map((pb) => (
-            <div key={pb.id} className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+            <div key={pb.id} className="card" style={{ padding: 22, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em',
+                    padding: '3px 10px', borderRadius: 999, background: 'var(--accent-bg)', color: 'var(--accent)',
+                    border: '1px solid var(--border)'
+                  }}>
                     {pb.id.startsWith('playbook-') ? 'Standard Template' : 'Custom Team Playbook'}
                   </span>
-                  <span className="text-xs font-medium text-neutral-400">{pb.rules.length} Rules</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>{pb.rules.length} Rules</span>
                 </div>
-                <h3 className="text-base font-bold text-neutral-900 mt-3">{pb.name}</h3>
-                <p className="text-xs text-neutral-600 mt-1 leading-relaxed">{pb.description}</p>
+
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 12 }}>{pb.name}</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{pb.description}</p>
 
                 {/* Rules List Preview */}
-                <div className="mt-4 space-y-2 border-t border-neutral-100 pt-3">
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {pb.rules.map((r, idx) => (
-                    <div key={idx} className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-100 flex items-start justify-between text-xs">
+                    <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', fontSize: 12 }}>
                       <div>
-                        <span className="font-semibold text-neutral-800">{r.category}: </span>
-                        <span className="text-neutral-600">{r.description}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{r.category}: </span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{r.description}</span>
                       </div>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ml-2 ${
-                        r.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' :
-                        r.severity === 'HIGH' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', marginLeft: 8,
+                        background: r.severity === 'CRITICAL' ? 'var(--risk-high-bg)' : r.severity === 'HIGH' ? 'var(--risk-med-bg)' : 'var(--risk-low-bg)',
+                        color: r.severity === 'CRITICAL' ? 'var(--risk-high-text)' : r.severity === 'HIGH' ? 'var(--risk-med-text)' : 'var(--risk-low-text)',
+                        border: '1px solid var(--border)'
+                      }}>
                         {r.severity}
                       </span>
                     </div>
@@ -122,57 +134,87 @@ export const PlaybooksPage: React.FC = () => {
 
       {/* Create Playbook Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-neutral-200 flex flex-col max-h-[85vh]">
-            <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50 flex-shrink-0">
-              <h3 className="text-base font-bold text-neutral-900">Create New Legal Playbook</h3>
-              <button onClick={() => setShowModal(false)} className="text-neutral-400 hover:text-neutral-600 text-2xl font-light leading-none p-1">&times;</button>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0, 0, 0, 0.55)', backdropFilter: 'blur(4px)', padding: 20
+        }}>
+          <div style={{
+            background: 'var(--bg-surface)', borderRadius: 16,
+            border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            width: '100%', maxWidth: 620, maxHeight: '90vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 24px', borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: 'var(--bg-subtle)', flexShrink: 0
+            }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Create New Legal Playbook</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted)', cursor: 'pointer', padding: 4, lineHeight: 1 }}
+              >
+                &times;
+              </button>
             </div>
 
-            <form onSubmit={handleSavePlaybook} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-6 space-y-5 overflow-y-auto flex-1">
+            {/* Modal Form */}
+            <form onSubmit={handleSavePlaybook} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18, flex: 1 }}>
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Playbook Name</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                    Playbook Name
+                  </label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Enterprise SaaS Vendor Policy"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    className="input"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Description</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                    Description
+                  </label>
                   <textarea
                     rows={2}
                     placeholder="Brief summary of when to apply this playbook..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    className="input"
+                    style={{ resize: 'vertical', minHeight: 60 }}
                   />
                 </div>
 
-                {/* Add Rule Form */}
-                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3">
-                  <h4 className="text-xs font-bold text-neutral-800 uppercase tracking-wider">Add Rule to Playbook</h4>
-                  <div className="grid grid-cols-2 gap-3">
+                {/* Add Rule Section Box */}
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 12, border: '1px solid var(--border)', padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>
+                    Add Rule to Playbook
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
-                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">Category</label>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Category</label>
                       <input
                         type="text"
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs"
+                        className="input"
+                        style={{ background: 'var(--bg-surface)' }}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">Severity</label>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Severity</label>
                       <select
                         value={severity}
                         onChange={(e) => setSeverity(e.target.value as any)}
-                        className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs"
+                        className="input"
+                        style={{ background: 'var(--bg-surface)', cursor: 'pointer' }}
                       >
                         <option value="LOW">LOW</option>
                         <option value="MEDIUM">MEDIUM</option>
@@ -183,31 +225,34 @@ export const PlaybooksPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-neutral-600 mb-1">Rule Description</label>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Rule Description</label>
                     <input
                       type="text"
                       placeholder="e.g. Liability cap must not be under $1M"
                       value={ruleDesc}
                       onChange={(e) => setRuleDesc(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs"
+                      className="input"
+                      style={{ background: 'var(--bg-surface)' }}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-neutral-600 mb-1">Disallowed Phrases (Comma-separated)</label>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Disallowed Phrases (Comma-separated)</label>
                     <input
                       type="text"
                       placeholder="e.g. uncapped liability, no warranty"
                       value={disallowed}
                       onChange={(e) => setDisallowed(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs"
+                      className="input"
+                      style={{ background: 'var(--bg-surface)' }}
                     />
                   </div>
 
                   <button
                     type="button"
                     onClick={handleAddRule}
-                    className="w-full py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-xs font-semibold rounded-lg transition-all"
+                    className="btn-ghost"
+                    style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
                   >
                     + Add Rule ({rules.length} added)
                   </button>
@@ -215,11 +260,22 @@ export const PlaybooksPage: React.FC = () => {
               </div>
 
               {/* Pinned Modal Footer */}
-              <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-100 flex items-center justify-end space-x-3 flex-shrink-0">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition-colors">
+              <div style={{
+                padding: '16px 24px', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flexShrink: 0
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn-ghost"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all">
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ padding: '8px 22px' }}
+                >
                   Save Playbook
                 </button>
               </div>
@@ -230,4 +286,3 @@ export const PlaybooksPage: React.FC = () => {
     </div>
   );
 };
-
