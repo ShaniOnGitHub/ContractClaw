@@ -5,8 +5,8 @@ import {
   Filter, Layers, AlertTriangle, ShieldCheck,
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
-import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation, generateRedlines, RedlineResponse } from '../services/api';
-import type { Contract, RiskFinding } from '../services/api';
+import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation, generateRedlines } from '../services/api';
+import type { Contract, RiskFinding, RedlineResponse } from '../services/api';
 import { RedlineModal } from '../components/RedlineModal';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────

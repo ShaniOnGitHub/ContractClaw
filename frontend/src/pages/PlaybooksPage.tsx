@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getPlaybooks, createPlaybook, Playbook, PlaybookRule } from '../services/api';
+import { getPlaybooks, createPlaybook } from '../services/api';
+import type { Playbook, PlaybookRule } from '../services/api';
 
 export const PlaybooksPage: React.FC = () => {
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);

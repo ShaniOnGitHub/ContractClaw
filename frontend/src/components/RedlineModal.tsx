@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RedlineResponse, RedlinePosition } from '../services/api';
+import type { RedlineResponse, RedlinePosition } from '../services/api';
 
 interface RedlineModalProps {
   isOpen: boolean;
