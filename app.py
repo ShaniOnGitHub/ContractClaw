@@ -1,5 +1,8 @@
 import os
+from api import app as app
+
 import streamlit as st
+
 
 from config import SAMPLE_CONTRACTS_DIR
 from utils.pdf_parser import extract_pdf_text_and_metadata
