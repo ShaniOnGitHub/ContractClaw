@@ -23,6 +23,8 @@ Thumbs.db
 
 # Database & Runtime Uploads
 *.db
+*.db-wal
+*.db-shm
 uploads/
 
 # Node
