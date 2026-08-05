@@ -368,5 +368,11 @@ export const getDeadlines = async (): Promise<{ deadlines: ContractDeadline[] }>
   return res.data;
 };
 
+/** Get run observability stage trace details */
+export const getRunTrace = async (runId: string): Promise<any> => {
+  const res = await apiClient.get(`${V1}/runs/${runId}`);
+  return res.data;
+};
+
 
 

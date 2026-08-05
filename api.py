@@ -491,6 +491,7 @@ def analyze_user_contract(
     return {
         "analysis_id": analysis_id,
         "contract_id": contract_id,
+        "run_id": analysis_result.get("run_id", "run_latest"),
         "retriever_mode": req.mode,
         "retrieval_info": info,
         "risks": analysis_result.get("risks", []),
@@ -500,6 +501,21 @@ def analyze_user_contract(
         "summary": analysis_result.get("summary", ""),
         "credits_remaining": remaining,
     }
+
+
+# ── Run Observability & Stage Timeline Endpoints ─────────────────────────────
+
+@v1.get("/runs/{run_id}")
+def get_run_trace(
+    run_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    from services.pipeline_tracing import get_run_details
+    details = get_run_details(run_id)
+    if not details:
+        raise HTTPException(404, f"Run {run_id} not found.")
+    return details
+
 
 
 # ── Clause Annotations & Notes ───────────────────────────────────────────────

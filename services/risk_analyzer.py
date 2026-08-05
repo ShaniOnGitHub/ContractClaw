@@ -33,6 +33,7 @@ Calls Groq (or OpenAI as fallback) with a strict JSON-output prompt and returns:
 import os
 import json
 import re
+import time
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 from dotenv import load_dotenv
@@ -167,9 +168,14 @@ def analyze_contract_risks(
     Returns:
         dict with keys: risks, checklist, obligations, overall_score, risk_level, summary
     """
-    client, provider, model_name = _get_llm_client()
-    text_excerpt = _build_text_excerpt(chunks)
+    from services.pipeline_tracing import RunTracer
+    from services.llm_client import call_deterministic_llm
+    from services.deterministic_scoring import calculate_contract_score
+    from services.validation_gates import validate_legal_assessment
+    from services.cost_tracker import ContractCostTracker
+    from services.caching import get_cached_stage_output, set_cached_stage_output
 
+    text_excerpt = _build_text_excerpt(chunks)
     if not text_excerpt.strip():
         return {
             "risks": [],
@@ -179,6 +185,29 @@ def analyze_contract_risks(
             "risk_level": "Low Risk",
             "summary": "No contract text available for analysis.",
         }
+
+    tracer = RunTracer(contract_id="contract_analysis")
+    cost_tracker = ContractCostTracker()
+    run_id = tracer.run_id
+
+    # Check Cache
+    cached_output = get_cached_stage_output(text_excerpt, "risk_analysis")
+    if cached_output:
+        cached_output["run_id"] = run_id
+        tracer.log_stage("cache_lookup", "completed", 1, data={"cache_hit": True})
+        tracer.finish_run(cached_output.get("contract_type", contract_type), cached_output.get("overall_score", 0), cached_output.get("risk_level", "Low Risk"))
+        return cached_output
+
+    start_ms = int(time.time() * 1000)
+
+    # Stage 1: Document Parsing / Chunk Assembly Log
+    tracer.log_stage("document_parsing", "completed", 5, data={"chunks_count": len(chunks), "chars": len(text_excerpt)})
+
+    # Stage 3: Document Classification Log
+    from services.document_classifier import classify_document
+    clf = classify_document(text_excerpt)
+    primary_type = clf.get("primary_type") or contract_type
+    tracer.log_stage("document_classification", "completed", 10, data=clf)
 
     rules_str = "Standard Legal Policy"
     if playbook_rules:
@@ -193,45 +222,24 @@ def analyze_contract_risks(
             rules_str = "; ".join(r_parts)
 
     prompt = RISK_PROMPT_TEMPLATE.format(
-        contract_type=contract_type,
+        contract_type=primary_type,
         playbook_rules_text=rules_str,
         text=text_excerpt,
     )
 
-    logger.info(f"Calling {provider.upper()} ({model_name}) for risk analysis ({len(text_excerpt)} chars, type={contract_type})")
+    # Stage 7 & Deterministic LLM Execution
+    llm_res = call_deterministic_llm(
+        prompt=prompt,
+        system_prompt="You are a precise legal contract analyst. Always return valid JSON only.",
+        prompt_version="risk_analyzer_v4",
+        schema_version="risk_schema_v2"
+    )
 
-    if provider == "groq":
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a precise legal risk analyst. Always respond with valid JSON only.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.0,
-            max_tokens=2048,
-            response_format={"type": "json_object"}
-        )
-    else:
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a precise legal risk analyst. Always respond with valid JSON only.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.0,
-            max_tokens=2048,
-        )
+    metrics = llm_res["metrics"]
+    cost_tracker.record_stage_metrics("legal_assessment", metrics["input_tokens"], metrics["output_tokens"], metrics["estimated_cost_usd"], metrics["duration_ms"])
+    tracer.log_stage("legal_assessment", "completed", metrics["duration_ms"], model=llm_res["metadata"]["model"], input_tokens=metrics["input_tokens"], output_tokens=metrics["output_tokens"], estimated_cost_usd=metrics["estimated_cost_usd"], data=llm_res["metadata"])
 
-    raw_content = response.choices[0].message.content or ""
-    logger.info(f"{provider.upper()} response received ({len(raw_content)} chars)")
-
-    result = _extract_json(raw_content)
+    result = llm_res["parsed"]
 
     # Validate and normalize findings
     risks = result.get("risks", [])
@@ -288,10 +296,12 @@ def analyze_contract_risks(
     else:
         risk_level = "Low Risk"
 
-    result["risk_level"] = risk_level
-
-    # Bug 2: Generate executive summary synchronized with overall_score and risk_level
+    client, provider, model_name = _get_llm_client()
     result["summary"] = _generate_synced_summary(client, provider, model_name, contract_type, overall_score, risk_level, normalized_risks)
+
+    result["run_id"] = run_id
+    tracer.finish_run(primary_type, overall_score, risk_level)
+    set_cached_stage_output(text_excerpt, "risk_analysis", result)
 
     return result
 
