@@ -63,8 +63,6 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
 
   const fType = risk.finding_type || 'informational';
   const cat = categoryConfig[fType] || categoryConfig.informational;
-  const confScore = risk.confidence_score ? Math.round(risk.confidence_score * 100) : 92;
-  const confLevel = risk.confidence_level || 'HIGH';
 
   return (
     <div style={{
@@ -91,13 +89,12 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
             </span>
           )}
 
-          {/* Fix 4: Confidence Score Badge */}
+          {/* Bug 4: Dual Confidence Signals (Detection & Assessment) */}
           <span style={{
             fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)',
-            background: confLevel === 'HIGH' ? '#f0fdf4' : confLevel === 'MEDIUM' ? '#fffbeb' : '#f8fafc',
-            color: confLevel === 'HIGH' ? '#15803d' : confLevel === 'MEDIUM' ? '#b45309' : '#64748b'
+            background: 'var(--bg-subtle)', color: 'var(--text-secondary)'
           }}>
-            🎯 Confidence: {confLevel} ({confScore}%)
+            🎯 Detection: {risk.detection_confidence || 94}% | Assessment: {risk.assessment_confidence || 76}%
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

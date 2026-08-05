@@ -7,24 +7,63 @@ from pypdf import PdfReader
 
 
 def detect_contract_type(text: str, filename: str = "") -> str:
-    """Detect contract type from text and filename using robust legal pattern matching."""
-    combined = f"{filename} {text[:2000]}".lower()
-    
-    if re.search(r"\b(non[\s\-]*disclosure|confidentiality|nda)\b", combined):
+    """
+    Bug 6 Fix: Standalone multi-stage document classification.
+    Classifies contract based on title headers, preamble roles, and structural term density.
+    Prevents confidentiality clauses inside employment contracts from misclassifying as NDA.
+    """
+    head = f"{filename} {text[:1500]}".lower()
+
+    # Stage 1: Explicit Header / Title Matching
+    if re.search(r"\b(employment agreement|employment contract|executive employment|job offer|offer letter|employee agreement|work agreement)\b", head):
+        return "Employment Agreement"
+    if re.search(r"\b(non[\s\-]*disclosure agreement|mutual nda|confidentiality agreement|one-way nda)\b", head):
         return "NDA"
-    elif re.search(r"\b(employment|job offer|offer letter|employee agreement|work agreement)\b", combined):
-        return "Employment"
-    elif re.search(r"\b(statement of work|sow|scope of work|task order)\b", combined):
+    if re.search(r"\b(statement of work|sow|scope of work|task order)\b", head):
         return "SOW"
-    elif re.search(r"\b(master services|service agreement|services agreement|msa|consulting agreement|subcontractor)\b", combined):
+    if re.search(r"\b(master services agreement|master service agreement|service agreement|services agreement|consulting agreement|subcontractor agreement)\b", head):
         return "Service Agreement"
-    elif re.search(r"\b(license agreement|software license|eula|saas agreement)\b", combined):
+    if re.search(r"\b(software license agreement|saas agreement|eula|license agreement)\b", head):
         return "License Agreement"
-    elif re.search(r"\b(vendor agreement|supplier agreement|procurement)\b", combined):
-        return "Vendor Agreement"
-    elif re.search(r"\b(lease|rental agreement|tenancy)\b", combined):
+    if re.search(r"\b(lease agreement|rental agreement|tenancy agreement)\b", head):
         return "Lease Agreement"
-    
+    if re.search(r"\b(vendor agreement|supplier agreement|procurement agreement)\b", head):
+        return "Vendor Agreement"
+
+    # Stage 2: Structural Role & Domain Density Scoring
+    full_lower = f"{filename} {text[:6000]}".lower()
+
+    emp_keywords = ["employer", "employee", "salary", "duties", "position", "employment", "probation", "severance", "job title", "benefits", "compensation"]
+    nda_keywords = ["disclosing party", "receiving party", "trade secret", "proprietary information", "non-disclosure"]
+    srv_keywords = ["contractor", "services", "statement of work", "deliverables", "service provider", "client", "fees"]
+    lease_keywords = ["lessor", "lessee", "premises", "rent", "landlord", "tenant"]
+
+    emp_score = sum(full_lower.count(kw) * 3 for kw in emp_keywords)
+    nda_score = sum(full_lower.count(kw) * 3 for kw in nda_keywords)
+    srv_score = sum(full_lower.count(kw) * 2 for kw in srv_keywords)
+    lease_score = sum(full_lower.count(kw) * 3 for kw in lease_keywords)
+
+    # Confidentiality keyword adjustment: if employment roles exist, demote generic "nda" score
+    if emp_score > 5:
+        nda_score = 0
+
+    scores = {
+        "Employment Agreement": emp_score,
+        "NDA": nda_score,
+        "Service Agreement": srv_score,
+        "Lease Agreement": lease_score,
+    }
+
+    best_type, best_score = max(scores.items(), key=lambda x: x[1])
+    if best_score >= 6:
+        return best_type
+
+    # Stage 3: Fallback keyword check
+    if "employment" in head or "employee" in head:
+        return "Employment Agreement"
+    if "nda" in head or "non-disclosure" in head:
+        return "NDA"
+
     return "Other"
 
 
@@ -34,20 +73,14 @@ def detect_parties(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", preamble)
     
     def clean_party(name: str) -> str:
-        # Strip date suffixes, effective clauses, and parentheticals
         name = re.sub(r'\s*\([^)]*\)', '', name)
         name = re.sub(r'\b(on|dated|effective|as of|this)\b.*$', '', name, flags=re.IGNORECASE)
         name = re.sub(r'^(a|an|the)\s+', '', name, flags=re.IGNORECASE)
         return name.strip().rstrip(',. ";:')
 
     patterns = [
-        # Pattern 1: ...between [Party A] and [Party B]...
         r"(?:entered into|made|effective|dated)?[^.\n]*?\b(?:by and between|between|among)\b\s+([^,\n;]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited|Co\.|GmbH|Pte\.)?)\s+(?:\(\"[^\"]+\"\)\s+)?(?:and|&)\s+([^,\n;]+?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited|Co\.|GmbH|Pte\.)?)",
-        
-        # Pattern 2: Party A: ... Party B: ...
         r"(?:Party\s*A|Company|Disclosing\s*Party|Client):\s*([^\n;]+)\s*(?:Party\s*B|Employee|Receiving\s*Party|Contractor):\s*([^\n;]+)",
-
-        # Pattern 3: BY AND BETWEEN ... AND ...
         r"BY AND BETWEEN\s+([^\n,;]+)\s+AND\s+([^\n,;]+)",
     ]
     
@@ -59,7 +92,6 @@ def detect_parties(text: str) -> str:
             if p1 and p2 and len(p1) > 2 and len(p2) > 2:
                 return f"{p1} & {p2}"
 
-    # Fallback: Find capitalized entity names with Inc, LLC, Corp, etc.
     entities = re.findall(r"\b([A-Z][A-Za-z0-9\s&\.\-]{2,40}?(?:Inc\.|LLC|Corp\.|Corporation|Ltd\.|Limited))\b", preamble)
     if len(entities) >= 2:
         clean_entities = list(dict.fromkeys([clean_party(e) for e in entities if clean_party(e)]))

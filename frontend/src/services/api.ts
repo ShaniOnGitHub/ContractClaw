@@ -58,6 +58,8 @@ export interface RiskFinding {
   explanation: string;
   recommendation: string;
   suggested_rewrite?: string;
+  detection_confidence?: number;
+  assessment_confidence?: number;
   confidence_score?: number;
   confidence_level?: 'HIGH' | 'MEDIUM' | 'LOW';
   playbook_violations?: string[];
@@ -77,6 +79,7 @@ export interface AnalysisResult {
   risks: RiskFinding[];
   checklist?: ClauseCompletenessItem[];
   overall_score: number;
+  risk_level?: string;
   summary: string;
   credits_remaining: number;
 }

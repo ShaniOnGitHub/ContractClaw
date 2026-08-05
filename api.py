@@ -456,12 +456,18 @@ def analyze_user_contract(
         req.mode, req.query, req.k, req.lambda_mult, True,
     )
 
-    logger.info(f"Analyzing {contract_id} for user {user_id} with {len(docs)} chunks")
+    current_type = contract.get("contract_type", "Other")
+    if contract.get("raw_text"):
+        from utils.pdf_parser import detect_contract_type
+        detected = detect_contract_type(contract["raw_text"], contract.get("filename", ""))
+        if detected != "Other" and (current_type in ("NDA", "Other") or detected == "Employment Agreement"):
+            current_type = detected
+            update_contract_status(contract_id, "indexed", contract_type=current_type)
 
     try:
         analysis_result = analyze_contract_risks(
             chunks=docs,
-            contract_type=contract["contract_type"],
+            contract_type=current_type,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -490,6 +496,7 @@ def analyze_user_contract(
         "risks": analysis_result.get("risks", []),
         "checklist": analysis_result.get("checklist", []),
         "overall_score": overall_score,
+        "risk_level": analysis_result.get("risk_level", "Moderate Risk"),
         "summary": analysis_result.get("summary", ""),
         "credits_remaining": remaining,
     }
