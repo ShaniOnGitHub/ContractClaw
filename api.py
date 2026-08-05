@@ -488,6 +488,7 @@ def analyze_user_contract(
         "retriever_mode": req.mode,
         "retrieval_info": info,
         "risks": analysis_result.get("risks", []),
+        "checklist": analysis_result.get("checklist", []),
         "overall_score": overall_score,
         "summary": analysis_result.get("summary", ""),
         "credits_remaining": remaining,

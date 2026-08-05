@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
 import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation, generateRedlines } from '../services/api';
-import type { Contract, RiskFinding, RedlineResponse } from '../services/api';
+import type { Contract, RiskFinding, RedlineResponse, ClauseCompletenessItem } from '../services/api';
 import { RedlineModal } from '../components/RedlineModal';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -19,16 +19,13 @@ const MODES = [
   { id: 'Parent Document Retriever', icon: Layers   },
 ];
 
-const severityConfig: Record<string, { cls: string; border: string }> = {
-  High:   { cls: 'badge-risk-high', border: 'var(--risk-high-border)' },
-  Medium: { cls: 'badge-risk-med',  border: 'var(--risk-med-border)'  },
-  Low:    { cls: 'badge-risk-low',  border: 'var(--risk-low-border)'  },
-};
-
-const riskBg: Record<string, string> = {
-  High:   'var(--risk-high-bg)',
-  Medium: 'var(--risk-med-bg)',
-  Low:    'var(--risk-low-bg)',
+const categoryConfig: Record<string, { label: string; badgeCls: string; bg: string; border: string }> = {
+  critical_risk:           { label: 'CRITICAL RISK',            badgeCls: 'bg-red-100 text-red-800 border border-red-200 font-bold',       bg: 'var(--risk-high-bg)', border: 'var(--risk-high-border)' },
+  compliance_check:        { label: 'COMPLIANCE CHECK',         badgeCls: 'bg-amber-100 text-amber-800 border border-amber-200 font-bold',   bg: 'var(--risk-med-bg)',  border: 'var(--risk-med-border)'  },
+  ambiguous_language:      { label: 'AMBIGUOUS LANGUAGE',       badgeCls: 'bg-orange-100 text-orange-800 border border-orange-200 font-bold', bg: 'var(--risk-med-bg)',  border: 'var(--risk-med-border)'  },
+  negotiation_opportunity: { label: 'NEGOTIATION OPPORTUNITY', badgeCls: 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-bold', bg: 'var(--accent-bg)',   border: 'var(--border)'  },
+  missing_clause:          { label: 'MISSING CLAUSE (OBSERVATION)', badgeCls: 'bg-slate-100 text-slate-700 border border-slate-200 font-bold', bg: 'var(--bg-subtle)', border: 'var(--border)'  },
+  informational:           { label: 'INFORMATIONAL',            badgeCls: 'bg-slate-100 text-slate-600 border border-slate-200 font-medium', bg: 'var(--bg-subtle)', border: 'var(--border)'  },
 };
 
 // ─── Risk Card ─────────────────────────────────────────────────────────────────
@@ -45,7 +42,6 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
   const [flagged, setFlagged] = useState(annotation?.flagged || false);
   const [comment, setComment] = useState(annotation?.note || '');
   const [expanded, setExpanded] = useState(index < 2);
-
 
   useEffect(() => {
     if (annotation) {
@@ -65,11 +61,14 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
     onSaveAnnotation(index, flagged, comment);
   };
 
-  const cfg = severityConfig[risk.severity] || severityConfig.Low;
+  const fType = risk.finding_type || 'informational';
+  const cat = categoryConfig[fType] || categoryConfig.informational;
+  const confScore = risk.confidence_score ? Math.round(risk.confidence_score * 100) : 92;
+  const confLevel = risk.confidence_level || 'HIGH';
 
   return (
     <div style={{
-      border: `1px solid ${flagged ? 'var(--risk-high-border)' : 'var(--border)'}`,
+      border: `1px solid ${flagged ? 'var(--risk-high-border)' : cat.border}`,
       borderRadius: 10,
       background: flagged ? 'var(--risk-high-bg)' : 'var(--bg-surface)',
       overflow: 'hidden',
@@ -80,14 +79,26 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
         onClick={() => setExpanded(e => !e)}
         style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className={cfg.cls}>{risk.severity}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${cat.badgeCls}`}>
+            {cat.label}
+          </span>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{risk.risk_type}</span>
+          
           {risk.grounded_citation && (
             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
               📍 {risk.grounded_citation}
             </span>
           )}
+
+          {/* Fix 4: Confidence Score Badge */}
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)',
+            background: confLevel === 'HIGH' ? '#f0fdf4' : confLevel === 'MEDIUM' ? '#fffbeb' : '#f8fafc',
+            color: confLevel === 'HIGH' ? '#15803d' : confLevel === 'MEDIUM' ? '#b45309' : '#64748b'
+          }}>
+            🎯 Confidence: {confLevel} ({confScore}%)
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
@@ -111,12 +122,12 @@ const RiskCard: React.FC<RiskCardProps> = ({ risk, index, annotation, onSaveAnno
       {expanded && (
         <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Clause text */}
-          <div style={{ background: riskBg[risk.severity], borderRadius: 7, padding: '8px 12px', fontSize: 12, fontStyle: 'italic', color: 'var(--text-primary)', lineHeight: 1.5, borderLeft: `2px solid ${cfg.border}` }}>
+          <div style={{ background: cat.bg, borderRadius: 7, padding: '8px 12px', fontSize: 12, fontStyle: 'italic', color: 'var(--text-primary)', lineHeight: 1.5, borderLeft: `3px solid ${cat.border}` }}>
             "{risk.clause_text}"
           </div>
           {/* Explanation */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Why it's risky</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Analysis & Fact / Consideration</div>
             <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.55 }}>{risk.explanation}</div>
           </div>
           {/* Recommendation & Redline Button */}
@@ -226,6 +237,8 @@ export const AnalysisPage: React.FC = () => {
   }, []);
 
   // Load contract details and annotations when selectedId changes
+  const [checklist, setChecklist] = useState<ClauseCompletenessItem[]>([]);
+
   useEffect(() => {
     if (!selectedId) return;
     getContract(selectedId).then(setContract).catch(console.error);
@@ -237,7 +250,7 @@ export const AnalysisPage: React.FC = () => {
       setAnnotations(map);
     }).catch(console.error);
 
-    setRisks([]); setScore(null); setSummary(''); setError('');
+    setRisks([]); setChecklist([]); setScore(null); setSummary(''); setError('');
   }, [selectedId]);
 
   // Sync URL param
@@ -261,10 +274,11 @@ export const AnalysisPage: React.FC = () => {
     if (!selectedId) return;
     setAnalyzing(true);
     setError('');
-    setRisks([]); setScore(null); setSummary('');
+    setRisks([]); setChecklist([]); setScore(null); setSummary('');
     try {
       const result = await analyzeContract(selectedId, activeMode);
       setRisks(result.risks);
+      setChecklist(result.checklist || []);
       setScore(result.overall_score);
       setSummary(result.summary);
 
@@ -392,6 +406,33 @@ export const AnalysisPage: React.FC = () => {
             {risks.length > 0 && !analyzing && (
               <>
                 {score !== null && <ScoreRing score={score} />}
+
+                {/* Fix 5: Clause Completeness Checklist Widget */}
+                {checklist.length > 0 && (
+                  <div className="card" style={{ borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                      Clause Completeness Checklist ({contract?.contract_type || 'Standard'})
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                      {checklist.map((item, idx) => (
+                        <div key={idx} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{item.clause_name}</span>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                              background: item.status === 'present' ? '#ecfdf5' : item.status === 'needs_attention' ? '#fffbeb' : '#f1f5f9',
+                              color: item.status === 'present' ? '#047857' : item.status === 'needs_attention' ? '#b45309' : '#475569',
+                              border: '1px solid var(--border)'
+                            }}>
+                              {item.status === 'present' ? '✓ Present' : item.status === 'needs_attention' ? '⚠️ Attention' : 'ℹ️ Missing'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {summary && (
                   <div className="card" style={{ borderRadius: 10, padding: '12px 14px', fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>

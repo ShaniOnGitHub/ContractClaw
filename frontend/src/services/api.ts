@@ -50,6 +50,7 @@ export interface Contract {
 }
 
 export interface RiskFinding {
+  finding_type?: 'critical_risk' | 'missing_clause' | 'ambiguous_language' | 'negotiation_opportunity' | 'compliance_check' | 'informational';
   risk_type: string;
   severity: 'Low' | 'Medium' | 'High';
   clause_text: string;
@@ -57,6 +58,15 @@ export interface RiskFinding {
   explanation: string;
   recommendation: string;
   suggested_rewrite?: string;
+  confidence_score?: number;
+  confidence_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  playbook_violations?: string[];
+}
+
+export interface ClauseCompletenessItem {
+  clause_name: string;
+  status: 'present' | 'needs_attention' | 'missing';
+  summary: string;
 }
 
 export interface AnalysisResult {
@@ -65,6 +75,7 @@ export interface AnalysisResult {
   retriever_mode: string;
   retrieval_info: Record<string, any>;
   risks: RiskFinding[];
+  checklist?: ClauseCompletenessItem[];
   overall_score: number;
   summary: string;
   credits_remaining: number;

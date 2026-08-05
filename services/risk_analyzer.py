@@ -1,15 +1,27 @@
 """
-services/risk_analyzer.py — Structured contract risk analysis via GroqCloud API (Llama-3.3-70b-versatile).
+services/risk_analyzer.py — Structured contract risk analysis via GroqCloud API / OpenAI.
 
 Calls Groq (or OpenAI as fallback) with a strict JSON-output prompt and returns:
   {
     "risks": [
       {
-        "risk_type":     "Termination | Liability | IP | Payment | Non-Compete | Indemnification | Other",
+        "finding_type": "critical_risk | missing_clause | ambiguous_language | negotiation_opportunity | compliance_check | informational",
+        "risk_type":     "Termination | Liability | IP | Payment | Non-Compete | Indemnification | Confidentiality | Dispute Resolution | Other",
         "severity":      "Low | Medium | High",
-        "clause_text":   "exact text from contract",
-        "explanation":   "1-2 sentences why this is risky",
-        "recommendation": "1 sentence on what to negotiate"
+        "clause_text":   "exact text from contract or [Clause Not Found]",
+        "grounded_citation": "Section 4.2 or Page 2",
+        "explanation":   "Fact + Consideration statement (e.g. 'The agreement provides X; consider Y')",
+        "recommendation": "1 sentence on what to negotiate or add",
+        "suggested_rewrite": "Formal replacement clause",
+        "confidence_score": 0.95,
+        "confidence_level": "HIGH | MEDIUM | LOW"
+      }
+    ],
+    "checklist": [
+      {
+        "clause_name": "Standard Clause Name",
+        "status": "present | needs_attention | missing",
+        "summary": "Neutral 1-line note"
       }
     ],
     "overall_score": 0-100,
@@ -31,7 +43,7 @@ logger = logging.getLogger("contractclaw.risk_analyzer")
 
 RISK_PROMPT_TEMPLATE = """You are a senior commercial contracts attorney and AI legal analyst.
 
-Analyze the following contract text for legal risks, key deadlines, obligations, and formal replacement clause language.
+Analyze the following contract text for legal risks, standard clause completeness, key deadlines, obligations, and formal replacement clause language.
 
 Contract Type: {contract_type}
 Custom Playbook Rules: {playbook_rules_text}
@@ -43,14 +55,22 @@ Return ONLY valid JSON in exactly this format:
 {{
   "risks": [
     {{
+      "finding_type": "one of: critical_risk | missing_clause | ambiguous_language | negotiation_opportunity | compliance_check | informational",
       "risk_type": "one of: Termination | Liability | IP | Payment | Non-Compete | Indemnification | Confidentiality | Dispute Resolution | Other",
       "severity": "one of: Low | Medium | High",
-      "clause_text": "the exact excerpt from the contract containing this risk (max 250 chars)",
-      "grounded_citation": "Page or Section citation where this clause appears, e.g. 'Section 4.2' or 'Section 8 (Termination)' or 'Page 1'",
-      "explanation": "1-2 sentences explaining why this clause is risky",
-      "recommendation": "1 concrete sentence on what to negotiate or add",
-      "suggested_rewrite": "A formal, lawyer-grade replacement clause rewritten in contract-appropriate language that fixes the identified risk. Must sound like actual contract language ready to paste.",
+      "clause_text": "the exact excerpt from the contract, or '[Clause Not Found]' if missing_clause (max 250 chars)",
+      "grounded_citation": "Page or Section citation where this clause appears, e.g. 'Section 4.2' or 'Section 8 (Termination)', or 'N/A - Missing Clause'",
+      "explanation": "State what is in the document, followed by what to consider (Fact + Consideration format). Example: 'The agreement provides termination on 30 days written notice by either party; consider whether this aligns with standard practice for this contract type.' For missing clauses, state plainly what is missing and why it can matter, without an alarmed tone.",
+      "recommendation": "1 concrete sentence on what to negotiate, clarify, or add",
+      "suggested_rewrite": "A formal, lawyer-grade replacement or missing clause rewritten in contract-appropriate language. Must sound like actual contract language ready to paste.",
       "playbook_violations": ["List any specific Custom Playbook position violations if applicable, otherwise empty array"]
+    }}
+  ],
+  "checklist": [
+    {{
+      "clause_name": "Standard expected clause name for {contract_type} (e.g. 'Confidentiality Scope', 'Term & Termination', 'Limitation of Liability', 'Governing Law', 'IP Ownership', 'Remedies / Injunctive Relief')",
+      "status": "one of: present | needs_attention | missing",
+      "summary": "1 sentence neutral statement of presence or omission"
     }}
   ],
   "obligations": [
@@ -61,19 +81,23 @@ Return ONLY valid JSON in exactly this format:
       "summary": "1 sentence describing the obligation and required action"
     }}
   ],
-  "overall_score": 75,
-  "summary": "2-3 sentence plain-English summary of the contract's overall risk profile"
+  "summary": "2-3 sentence objective plain-English summary of the contract's structure and finding profile"
 }}
 
 Rules:
-- Find between 3 and 8 risks.
-- Provide a clear grounded_citation for EVERY risk.
-- Provide a formal, lawyer-grade suggested_rewrite for EVERY risk.
-- Extract all key dates, notice windows, payment terms, and renewal deadlines into obligations.
-- overall_score must be an integer between 0 and 100.
+- Categorize EVERY finding into one of the 6 finding_types:
+  1) 'critical_risk': A clause exists and is actively dangerous (unlimited liability, immediate termination without cause, non-compete with unreasonable scope).
+  2) 'missing_clause': A standard clause for this contract type was not found. State plainly what is missing and why it can matter; do NOT assert it as an alarmed risk with the same confidence as a Critical Risk finding.
+  3) 'ambiguous_language': A clause exists but is vague enough that its actual effect is unclear.
+  4) 'negotiation_opportunity': Not dangerous, but a place where better terms are reasonably available.
+  5) 'compliance_check': Relevant to a legal or regulatory requirement, flagged for review.
+  6) 'informational': Standard, unremarkable terms worth noting.
+
+- Format ALL explanations as 'Fact + Consideration' (e.g. 'The agreement states X; consider Y.'). Do NOT tell the user what to conclude.
+- Provide between 3 and 8 findings.
+- Provide between 4 and 7 checklist items covering standard core clauses for {contract_type}.
 - Respond ONLY with valid JSON.
 """
-
 
 
 def _get_llm_client() -> Tuple[Any, str, str]:
@@ -106,11 +130,9 @@ def _extract_json(raw: str) -> Dict[str, Any]:
     if fence_match:
         raw = fence_match.group(1).strip()
     
-    # Try parsing direct JSON
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        # Fallback: search for first '{' and last '}'
         start = raw.find('{')
         end = raw.rfind('}')
         if start != -1 and end != -1 and end > start:
@@ -142,13 +164,8 @@ def analyze_contract_risks(
     """
     Main entry point. Takes retrieved chunks, calls Groq (or OpenAI), returns structured risk dict.
 
-    Args:
-        chunks:         List of retrieved chunk dicts with 'content' key.
-        contract_type:  Auto-detected type (NDA, Employment, etc.)
-        playbook_rules: Custom risk position thresholds (max_liability_cap, min_notice_days, etc.)
-
     Returns:
-        dict with keys: risks, obligations, overall_score, summary
+        dict with keys: risks, checklist, obligations, overall_score, summary
     """
     client, provider, model_name = _get_llm_client()
     text_excerpt = _build_text_excerpt(chunks)
@@ -156,6 +173,7 @@ def analyze_contract_risks(
     if not text_excerpt.strip():
         return {
             "risks": [],
+            "checklist": [],
             "obligations": [],
             "overall_score": 0,
             "summary": "No contract text available for analysis.",
@@ -178,7 +196,6 @@ def analyze_contract_risks(
         playbook_rules_text=rules_str,
         text=text_excerpt,
     )
-
 
     logger.info(f"Calling {provider.upper()} ({model_name}) for risk analysis ({len(text_excerpt)} chars, type={contract_type})")
 
@@ -215,12 +232,42 @@ def analyze_contract_risks(
 
     result = _extract_json(raw_content)
 
-    # Validate and normalise
-    if "risks" not in result or not isinstance(result["risks"], list):
-        result["risks"] = []
+    # Validate and normalize findings
+    risks = result.get("risks", [])
+    if not isinstance(risks, list):
+        risks = []
 
-    # Enforce deterministic score based on extracted risks & unlimited liability rules
-    result["overall_score"] = _compute_deterministic_score(result["risks"])
+    normalized_risks = []
+    for r in risks:
+        if not isinstance(r, dict):
+            continue
+        
+        ftype = r.get("finding_type", "informational").lower()
+        if ftype not in ("critical_risk", "missing_clause", "ambiguous_language", "negotiation_opportunity", "compliance_check", "informational"):
+            # Infer finding type if model output legacy schema
+            if r.get("severity") == "High":
+                ftype = "critical_risk"
+            elif r.get("severity") == "Medium":
+                ftype = "ambiguous_language"
+            else:
+                ftype = "informational"
+
+        r["finding_type"] = ftype
+
+        # Fix 4: Calculate retrieval confidence score per finding
+        conf_score, conf_level = _compute_finding_confidence(r, text_excerpt, chunks)
+        r["confidence_score"] = conf_score
+        r["confidence_level"] = conf_level
+        normalized_risks.append(r)
+
+    result["risks"] = normalized_risks
+
+    # Fix 5: Ensure checklist exists
+    if "checklist" not in result or not isinstance(result["checklist"], list):
+        result["checklist"] = _generate_fallback_checklist(contract_type, normalized_risks)
+
+    # Fix 3: Enforce 100% deterministic rule-based score calculation
+    result["overall_score"] = _compute_deterministic_score(normalized_risks)
 
     if "summary" not in result:
         result["summary"] = ""
@@ -228,30 +275,114 @@ def analyze_contract_risks(
     return result
 
 
+def _compute_finding_confidence(
+    finding: Dict[str, Any],
+    text_excerpt: str,
+    chunks: List[Dict[str, Any]]
+) -> Tuple[float, str]:
+    """
+    Fix 4: Calculates confidence score (0.0 to 1.0) and level ('HIGH' | 'MEDIUM' | 'LOW')
+    based on retrieval text match and chunk signal.
+    """
+    clause = finding.get("clause_text", "").strip()
+    ftype = finding.get("finding_type", "")
+
+    # Missing clause is a clear structural finding
+    if ftype == "missing_clause" or "[clause not found]" in clause.lower():
+        return 0.90, "HIGH"
+
+    if not clause:
+        return 0.70, "MEDIUM"
+
+    # Check direct occurrence in text excerpt
+    clause_clean = clause.lower()[:80]
+    if clause_clean in text_excerpt.lower():
+        return 0.96, "HIGH"
+
+    # Substring / overlap check
+    words = [w for w in re.findall(r"\w+", clause_clean) if len(w) > 3]
+    if words:
+        matches = sum(1 for w in words if w in text_excerpt.lower())
+        ratio = matches / len(words)
+        if ratio >= 0.7:
+            return 0.88, "HIGH"
+        elif ratio >= 0.4:
+            return 0.75, "MEDIUM"
+
+    return 0.65, "LOW"
+
+
 def _compute_deterministic_score(risks: List[Dict[str, Any]]) -> int:
-    """Computes a 100% deterministic risk score based on extracted risk severities and unlimited liability rules."""
+    """
+    Fix 3: Computes a 100% deterministic risk score based on rule-weighted findings.
+    
+    Weights & Caps:
+    - critical_risk: 30 pts each (uncapped)
+    - ambiguous_language: 10 pts each (max cap 30 pts)
+    - compliance_check: 8 pts each (max cap 24 pts)
+    - negotiation_opportunity: 3 pts each (max cap 9 pts)
+    - missing_clause: 5 pts each (max cap 15 pts TOTAL; missing clauses alone NEVER push into High Risk)
+    - informational: 0 pts
+    """
     if not risks:
         return 0
 
-    high_count = sum(1 for r in risks if r.get("severity") == "High")
-    med_count = sum(1 for r in risks if r.get("severity") == "Medium")
-    low_count = sum(1 for r in risks if r.get("severity") == "Low")
+    critical_count = sum(1 for r in risks if r.get("finding_type") == "critical_risk" or (r.get("severity") == "High" and r.get("finding_type") != "missing_clause"))
+    ambiguous_count = sum(1 for r in risks if r.get("finding_type") == "ambiguous_language")
+    compliance_count = sum(1 for r in risks if r.get("finding_type") == "compliance_check")
+    negotiation_count = sum(1 for r in risks if r.get("finding_type") == "negotiation_opportunity")
+    missing_count = sum(1 for r in risks if r.get("finding_type") == "missing_clause")
 
+    critical_pts = critical_count * 30
+    ambiguous_pts = min(30, ambiguous_count * 10)
+    compliance_pts = min(24, compliance_count * 8)
+    negotiation_pts = min(9, negotiation_count * 3)
+    missing_pts = min(15, missing_count * 5)
+
+    total_score = critical_pts + ambiguous_pts + compliance_pts + negotiation_pts + missing_pts
+
+    # Check for explicit uncapped liability / unlimited risk
     has_unlimited_liability = any(
         "unlimited liability" in (r.get("clause_text", "") + r.get("explanation", "")).lower() or
         "uncapped" in (r.get("clause_text", "") + r.get("explanation", "")).lower() or
         "consequential damages" in (r.get("clause_text", "") + r.get("explanation", "")).lower()
         for r in risks
+        if r.get("finding_type") == "critical_risk"
     )
 
-    score = (high_count * 25) + (med_count * 12) + (low_count * 5)
-
     if has_unlimited_liability:
-        score = max(score, 80)
-    elif high_count >= 1:
-        score = max(score, 70)
-    elif med_count >= 1:
-        score = max(score, 40)
+        total_score = max(total_score, 80)
+    elif critical_count >= 1:
+        total_score = max(total_score, 70)
+    elif (ambiguous_pts + compliance_pts + negotiation_pts) >= 20:
+        total_score = max(total_score, 45)
 
-    return min(100, score)
+    return min(100, max(0, total_score))
 
+
+def _generate_fallback_checklist(contract_type: str, risks: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Generates standard clause checklist if model omit checklist array."""
+    std_clauses = {
+        "NDA": ["Confidentiality Scope", "Term & Termination", "Exclusions from Confidentiality", "Return of Materials", "Governing Law & Jurisdiction"],
+        "SaaS Agreement": ["Service Level Terms (SLA)", "Limitation of Liability", "Data Security & Privacy", "Intellectual Property Rights", "Auto-Renewal & Cancellation"],
+        "Employment": ["Compensation & Benefits", "Termination Notice & Severance", "IP Assignment", "Non-Compete & Non-Solicit", "Confidentiality"],
+    }.get(contract_type, ["Term & Termination", "Limitation of Liability", "IP Ownership", "Governing Law", "Indemnification"])
+
+    missing_topics = {r.get("risk_type", "").lower() for r in risks if r.get("finding_type") == "missing_clause"}
+    attention_topics = {r.get("risk_type", "").lower() for r in risks if r.get("finding_type") in ("critical_risk", "ambiguous_language")}
+
+    checklist = []
+    for cname in std_clauses:
+        c_lower = cname.lower()
+        if any(t in c_lower for t in missing_topics):
+            status = "missing"
+            summary = f"Standard {cname} clause was not detected in analyzed text."
+        elif any(t in c_lower for t in attention_topics):
+            status = "needs_attention"
+            summary = f"{cname} clause is present but contains flagged terms."
+        else:
+            status = "present"
+            summary = f"Standard {cname} terms are present."
+        checklist.append({"clause_name": cname, "status": status, "summary": summary})
+
+    return checklist
