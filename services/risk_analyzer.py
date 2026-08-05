@@ -416,8 +416,8 @@ def _compute_deterministic_score(risks: List[Dict[str, Any]]) -> int:
 
     total_score = critical_pts + ambiguous_pts + compliance_pts + negotiation_pts + missing_pts
 
-    # Base completeness offset if contract has missing/attention findings
-    if missing_count > 0 or ambiguous_count > 0:
+    # Base completeness offset if contract has ambiguous or compliance findings
+    if ambiguous_count > 0 or compliance_count > 0:
         total_score += 10
 
     # High Risk 80 floor MUST ONLY trigger if a finding is explicitly CRITICAL_RISK with High severity!
