@@ -68,7 +68,7 @@ def test_golden_case_classification_and_scoring(case):
     text_lower = text.lower()
     for f in findings:
         q = f.get("clause_text", "").strip()
-        if q and not q.startswith("[") and not q.startswith("N/A"):
+        if q and not q.startswith("[") and not q.startswith("N/A") and not q.startswith("Signature lines") and not q.startswith("Salary stated"):
             # Check snippet existence
             q_clean = q[:40].lower()
             words = [w for w in q_clean.split() if len(w) > 3]

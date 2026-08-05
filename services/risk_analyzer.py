@@ -241,6 +241,15 @@ def analyze_contract_risks(
     cost_tracker.record_stage_metrics("legal_assessment", metrics["input_tokens"], metrics["output_tokens"], metrics["estimated_cost_usd"], metrics["duration_ms"])
     tracer.log_stage("legal_assessment", "completed", metrics["duration_ms"], model=llm_res["metadata"]["model"], input_tokens=metrics["input_tokens"], output_tokens=metrics["output_tokens"], estimated_cost_usd=metrics["estimated_cost_usd"], data=llm_res["metadata"])
 
+    # Stage 5 & 11: Deterministic Rule Engine Checks (Zero LLM)
+    from services.rule_engine import detect_document_validity, detect_signature_status, check_currency_jurisdiction_consistency
+    from services.cross_clause_validator import aggregate_payment_facts, validate_cross_clause_findings
+    from services.clause_completeness import generate_completeness_checklist
+
+    usability_status, is_valid, validity_finding = detect_document_validity(text_excerpt)
+    execution_status, sig_finding = detect_signature_status(text_excerpt)
+    currency_finding = check_currency_jurisdiction_consistency(text_excerpt)
+    payment_facts = aggregate_payment_facts(text_excerpt)
     result = llm_res["parsed"]
 
     # Validate and normalize findings
@@ -249,12 +258,28 @@ def analyze_contract_risks(
         risks = []
 
     normalized_risks = []
+
+    # Insert deterministic findings at top
+    if validity_finding:
+        normalized_risks.append(validity_finding)
+    if sig_finding:
+        normalized_risks.append(sig_finding)
+    if currency_finding:
+        normalized_risks.append(currency_finding)
+
     for r in risks:
         if not isinstance(r, dict):
             continue
         
         ftype = r.get("finding_type", "informational").lower()
-        if ftype not in ("critical_risk", "missing_clause", "ambiguous_language", "negotiation_opportunity", "compliance_check", "informational"):
+        rtype = str(r.get("risk_type", "")).lower()
+
+        # Section 8 & 9: Optional clause handling (Non-compete & Limitation of liability)
+        if rtype in ("non-compete", "non_compete", "limitation of liability", "liability") and ftype == "missing_clause":
+            ftype = "missing_optional"
+            r["category"] = "Optional Clause Review"
+
+        if ftype not in ("critical_risk", "missing_clause", "missing_expected", "missing_optional", "ambiguous_language", "negotiation_opportunity", "compliance_check", "informational", "positive_finding"):
             if r.get("severity") == "High":
                 ftype = "critical_risk"
             elif r.get("severity") == "Medium":
@@ -264,44 +289,58 @@ def analyze_contract_risks(
 
         r["finding_type"] = ftype
 
-        # Bug 3: Enforce Objective 3-part template on explanation
-        r["explanation"] = _format_objective_explanation(r)
+        # Section 9: Prohibited liability phrasing replacement
+        explanation = _format_objective_explanation(r)
+        if "unlimited liability" in explanation.lower() and ftype != "critical_risk":
+            explanation = "No dedicated limitation of liability clause was detected. The practical effect depends on applicable law, mandatory employment protections, insurance, and the type of claim."
+        r["explanation"] = explanation
 
-        # Bug 5: Complete Card Render Fallbacks
+        # Card Render Fallbacks
         if not r.get("clause_text") or not r["clause_text"].strip():
-            r["clause_text"] = "[Clause Not Found]" if ftype == "missing_clause" else "[No specific excerpt extracted - general clause finding]"
+            r["clause_text"] = "[Clause Not Found]" if "missing" in ftype else "[No specific excerpt extracted - general clause finding]"
         if not r.get("recommendation"):
             r["recommendation"] = f"Confirm whether standard {r.get('risk_type', 'clause')} terms align with operational requirements."
         if not r.get("suggested_rewrite"):
             r["suggested_rewrite"] = f"Standard {r.get('risk_type', 'Clause')} Provision: The parties agree to standard terms in accordance with governing law."
 
-        # Bug 4: Calculate dual detection and assessment confidence scores
         det_conf, ass_conf = _compute_dual_confidence(r, text_excerpt, chunks)
         r["detection_confidence"] = det_conf
         r["assessment_confidence"] = ass_conf
         normalized_risks.append(r)
 
+    # Cross-clause validation & payment fact syncing
+    normalized_risks = validate_cross_clause_findings(normalized_risks, payment_facts)
     result["risks"] = normalized_risks
 
-    # Fix 5: Ensure checklist exists
-    if "checklist" not in result or not isinstance(result["checklist"], list):
-        result["checklist"] = _generate_fallback_checklist(contract_type, normalized_risks)
+    # Stage 9: Generate 6-State Completeness Checklist
+    extracted_clauses = {}
+    for r in normalized_risks:
+        rtype = str(r.get("risk_type", "")).lower()
+        extracted_clauses[rtype] = {"found": True if r.get("clause_text") != "[Clause Not Found]" else False, "text": r.get("clause_text", ""), "heading": r.get("grounded_citation", rtype)}
 
-    # Bug 1 Audit: Compute deterministic overall score FIRST
-    overall_score = _compute_deterministic_score(normalized_risks)
+    result["checklist"] = generate_completeness_checklist(primary_type, extracted_clauses)
+
+    # Stage 13: Deterministic Scoring Engine
+    scoring_res = calculate_contract_score(
+        findings=normalized_risks,
+        document_type=primary_type,
+        usability_status=usability_status,
+        execution_status=execution_status
+    )
+
+    overall_score = scoring_res["overall_score"]
+    risk_level = scoring_res["risk_level"]
+
     result["overall_score"] = overall_score
-
-    if overall_score >= 65:
-        risk_level = "High Risk"
-    elif overall_score >= 30:
-        risk_level = "Moderate Risk"
-    else:
-        risk_level = "Low Risk"
-
+    result["contract_risk_score"] = overall_score
+    result["contract_risk_band"] = scoring_res["contract_risk_band"]
     result["risk_level"] = risk_level
+    result["document_usability_status"] = usability_status
+    result["execution_status"] = execution_status
 
+    # Stage 16: Executive Summary Generation
     client, provider, model_name = _get_llm_client()
-    result["summary"] = _generate_synced_summary(client, provider, model_name, contract_type, overall_score, risk_level, normalized_risks)
+    result["summary"] = _generate_synced_summary(client, provider, model_name, primary_type, overall_score, risk_level, normalized_risks)
 
     result["run_id"] = run_id
     tracer.finish_run(primary_type, overall_score, risk_level)
@@ -445,10 +484,6 @@ def _compute_deterministic_score(risks: List[Dict[str, Any]]) -> int:
 
     if has_unlimited_liability:
         total_score = max(total_score, 80)
-    elif critical_count >= 1:
-        total_score = max(total_score, 70)
-
-    # Pure informational contract lands 0-25 Low Risk
     if critical_count == 0 and ambiguous_count == 0 and missing_count == 0:
         total_score = min(total_score, 25)
 
@@ -465,26 +500,30 @@ def _generate_synced_summary(
     risks: List[Dict[str, Any]]
 ) -> str:
     """
-    Bug 2: Generates an executive summary synchronized directly with the computed overall_score and risk_level.
-    The summary text can NEVER contradict the score or risk level label.
+    Section 18: Generates an executive summary synchronized directly with the computed overall_score,
+    risk_level, document validity, and execution status.
+    Must introduce ZERO ungrounded facts.
     """
-    finding_summaries = [f"- [{r.get('finding_type', 'info')}]: {r.get('risk_type')} - {r.get('explanation', '')[:100]}" for r in risks[:5]]
+    finding_summaries = [f"- [{r.get('category', r.get('finding_type', 'info'))}]: {r.get('risk_type')} - {r.get('explanation', '')}" for r in risks[:6]]
     findings_text = "\n".join(finding_summaries)
 
-    prompt = f"""Write a 2-3 sentence executive summary for a commercial contract risk analysis.
+    prompt = f"""Write a 3-4 sentence grounded executive summary for a commercial contract analysis.
 
 Contract Type: {contract_type}
-Calculated Risk Score: {overall_score} out of 100
+Calculated Contract Risk Score: {overall_score} out of 100
 Calculated Risk Level: {risk_level}
 
-Key Findings:
+Validated Findings:
 {findings_text}
 
-Instructions:
-1. The summary MUST explicitly state that the document presents {risk_level} with an overall score of {overall_score}/100.
-2. Synthesize the findings matching this {risk_level} band.
-3. Do NOT contradict the {risk_level} label or score of {overall_score}.
-4. Return ONLY 2-3 plain-English sentences. No JSON, no markdown formatting.
+Rules:
+1. Synthesize ONLY the validated findings above.
+2. Explicitly state the contract risk score of {overall_score} out of 100.
+3. If document status states it is a test document or has no legal effect, explicitly state that it is a test document with no legal effect.
+4. If execution status states signature fields are blank, explicitly state that signature fields are blank.
+5. If salary is in USD while location/law are German, note that payroll currency handling should be confirmed.
+6. Do NOT introduce any new claims or ungrounded facts not present in the validated findings above.
+7. Return ONLY 3-4 plain-English sentences. No JSON, no markdown formatting.
 """
 
     try:
@@ -493,23 +532,20 @@ Instructions:
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=250
+                max_tokens=300
             )
         else:
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=250
+                max_tokens=300
             )
-        text = resp.choices[0].message.content or ""
-        text = text.strip().replace("\n", " ")
-        if risk_level not in text and str(overall_score) not in text:
-            return f"This {contract_type} presents an overall {risk_level} profile with a score of {overall_score}/100 based on {len(risks)} categorized findings. Key items include reviews of clause scope and operational alignment."
-        return text
+        raw_summary = resp.choices[0].message.content or ""
+        return raw_summary.strip()
     except Exception as e:
-        logger.warning(f"Summary generation fallback: {e}")
-        return f"This {contract_type} presents an overall {risk_level} profile with a score of {overall_score}/100 based on {len(risks)} categorized findings. Key items include reviews of clause scope and operational alignment."
+        logger.warning(f"Executive summary generation error: {e}")
+        return f"This contract has been analyzed as {risk_level} with a contract risk score of {overall_score} out of 100 based on standard policy parameters."
 
 
 def _generate_fallback_checklist(contract_type: str, risks: List[Dict[str, Any]]) -> List[Dict[str, str]]:

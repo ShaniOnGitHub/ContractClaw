@@ -147,5 +147,45 @@ This Agreement is made between Generic Corp and Consultant Alex.
         "allowed_score_range": {"minimum": 15, "maximum": 60},
         "required_findings": [],
         "forbidden_findings": []
+    },
+    {
+        "test_case_id": "permanent_sample_contract_007",
+        "description": "Permanent Sample Employment Agreement (FOR SOFTWARE TESTING PURPOSES ONLY)",
+        "filename": "jane_doe_employment_agreement.pdf",
+        "text": """
+FOR SOFTWARE TESTING PURPOSES ONLY. NOT VALID. NOT A REAL AGREEMENT.
+It has no legal effect.
+
+EMPLOYMENT AGREEMENT
+
+This Employment Agreement is entered into by and between TechCorp GmbH ("Employer"), located in Berlin, Germany, and Jane Doe ("Employee").
+
+1. POSITION AND DUTIES. Employee is employed as Senior Software Engineer.
+2. SALARY AND BENEFITS. Employee's annual base salary shall be USD 85,000. Employer provides health insurance, pension contributions, and annual bonus eligibility.
+3. WORKING HOURS AND LEAVE. Standard working hours are 40 hours per week. Employee is entitled to 25 days paid annual leave.
+4. CONFIDENTIALITY.
+5. INTELLECTUAL PROPERTY.
+6. TERM AND TERMINATION. Either party may terminate with 30 days prior written notice.
+7. GOVERNING LAW AND DISPUTE RESOLUTION. Governed by the laws of Germany. Disputes shall be resolved in Berlin courts.
+
+EMPLOYER SIGNATURE: ___________________
+EMPLOYEE SIGNATURE: ___________________
+""",
+        "expected_document_types": ["Employment Agreement"],
+        "minimum_classification_confidence": 0.80,
+        "expected_risk_band": "Low Risk",
+        "allowed_score_range": {"minimum": 0, "maximum": 35},
+        "expected_usability_status": "Test Document",
+        "expected_execution_status": "Unsigned",
+        "required_findings": [
+            {"category": "Document Status", "title": "Document Validity"},
+            {"category": "Execution Status", "title": "Execution Status"},
+            {"category": "Consistency Check", "title": "Currency Mismatch Check"}
+        ],
+        "forbidden_findings": [
+            {"claim": "The employer is exposed to unlimited liability"},
+            {"claim": "Bonuses are not addressed"},
+            {"claim": "Benefits are not addressed"}
+        ]
     }
 ]

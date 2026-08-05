@@ -67,7 +67,7 @@ export interface RiskFinding {
 
 export interface ClauseCompletenessItem {
   clause_name: string;
-  status: 'present' | 'needs_attention' | 'missing';
+  status: 'present_complete' | 'mentioned_incomplete' | 'missing_expected' | 'missing_optional' | 'not_applicable' | 'uncertain' | 'present' | 'needs_attention' | 'missing' | string;
   summary: string;
 }
 

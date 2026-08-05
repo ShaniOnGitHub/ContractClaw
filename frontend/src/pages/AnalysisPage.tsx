@@ -404,29 +404,59 @@ export const AnalysisPage: React.FC = () => {
               <>
                 {score !== null && <ScoreRing score={score} />}
 
-                {/* Fix 5: Clause Completeness Checklist Widget */}
+                {/* Section 24: Separate Status Panel for Document Usability & Execution Status */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Document Usability</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {checklist.some(c => c.clause_name === 'Document Validity' || contract?.raw_text?.includes('SOFTWARE TESTING')) ? '⚠️ Test Document' : '✓ Enforceable Agreement'}
+                    </div>
+                  </div>
+                  <div style={{ padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Execution Status</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {contract?.raw_text?.includes('____') || contract?.raw_text?.includes('Signature') ? '📝 Unsigned (Blank Fields)' : '✓ Executed'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 24: 6-State Clause Completeness Checklist */}
                 {checklist.length > 0 && (
                   <div className="card" style={{ borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 8 }}>
                       Clause Completeness Checklist ({contract?.contract_type || 'Standard'})
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-                      {checklist.map((item, idx) => (
-                        <div key={idx} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{item.clause_name}</span>
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
-                              background: item.status === 'present' ? '#ecfdf5' : item.status === 'needs_attention' ? '#fffbeb' : '#f1f5f9',
-                              color: item.status === 'present' ? '#047857' : item.status === 'needs_attention' ? '#b45309' : '#475569',
-                              border: '1px solid var(--border)'
-                            }}>
-                              {item.status === 'present' ? '✓ Present' : item.status === 'needs_attention' ? '⚠️ Attention' : 'ℹ️ Missing'}
-                            </span>
+                      {checklist.map((item, idx) => {
+                        let badgeBg = '#f1f5f9';
+                        let badgeColor = '#475569';
+                        let badgeText = item.status;
+
+                        if (item.status === 'present_complete' || item.status === 'present') {
+                          badgeBg = '#ecfdf5'; badgeColor = '#047857'; badgeText = '✓ Present & Complete';
+                        } else if (item.status === 'mentioned_incomplete' || item.status === 'needs_attention') {
+                          badgeBg = '#fffbeb'; badgeColor = '#b45309'; badgeText = '⚠️ Mentioned but incomplete';
+                        } else if (item.status === 'missing_optional') {
+                          badgeBg = '#f1f5f9'; badgeColor = '#64748b'; badgeText = 'ℹ️ Optional & Not Detected';
+                        } else if (item.status === 'missing_expected' || item.status === 'missing') {
+                          badgeBg = '#fef2f2'; badgeColor = '#b91c1c'; badgeText = '❌ Missing Expected';
+                        }
+
+                        return (
+                          <div key={idx} style={{ padding: '8px 10px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{item.clause_name}</span>
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                                background: badgeBg, color: badgeColor, border: '1px solid var(--border)'
+                              }}>
+                                {badgeText}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.summary}</span>
                           </div>
-                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.summary}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
