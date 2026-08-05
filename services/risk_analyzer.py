@@ -194,8 +194,10 @@ def analyze_contract_risks(
     cached_output = get_cached_stage_output(text_excerpt, "risk_analysis")
     if cached_output:
         cached_output["run_id"] = run_id
+        score = cached_output.get("overall_score", 0)
+        cached_output["risk_level"] = "High Risk" if score >= 65 else "Moderate Risk" if score >= 30 else "Low Risk"
         tracer.log_stage("cache_lookup", "completed", 1, data={"cache_hit": True})
-        tracer.finish_run(cached_output.get("contract_type", contract_type), cached_output.get("overall_score", 0), cached_output.get("risk_level", "Low Risk"))
+        tracer.finish_run(cached_output.get("contract_type", contract_type), score, cached_output["risk_level"])
         return cached_output
 
     start_ms = int(time.time() * 1000)
@@ -295,6 +297,8 @@ def analyze_contract_risks(
         risk_level = "Moderate Risk"
     else:
         risk_level = "Low Risk"
+
+    result["risk_level"] = risk_level
 
     client, provider, model_name = _get_llm_client()
     result["summary"] = _generate_synced_summary(client, provider, model_name, contract_type, overall_score, risk_level, normalized_risks)
