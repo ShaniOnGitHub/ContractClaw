@@ -38,11 +38,7 @@ from services.auth import (
 )
 from utils.pdf_parser import extract_pdf_text_and_metadata
 from retrievers.base_retriever import ContractVectorStoreManager
-from retrievers.similarity_retriever import similarity_search_with_scores
-from retrievers.mmr_retriever import mmr_search_documents
-from retrievers.multi_query_retriever import multi_query_search
-from retrievers.self_query_retriever import self_query_search
-from retrievers.parent_doc_retriever import ContractParentDocumentRetriever
+from retrievers.claw_engine import ClawEngine, resolve_engine_mode, get_engine_display_name
 from services.risk_analyzer import analyze_contract_risks
 from services.redlining import RedlineGenerator
 from services.playbooks import PlaybookEngine
@@ -79,24 +75,15 @@ app.add_middleware(
 init_db()
 logger.info("SQLite database initialised with multi-user auth schema")
 
-# ─── Global vector store managers ─────────────────────────────────────────────
+# ─── Global Claw 1.0 Engine Manager ───────────────────────────────────────────
 
-_vs_managers: Dict[str, ContractVectorStoreManager] = {}
-_parent_retrievers: Dict[str, ContractParentDocumentRetriever] = {}
+_claw_engines: Dict[str, ClawEngine] = {}
 
-def _get_vs_manager(contract_id: str) -> ContractVectorStoreManager:
-    if contract_id not in _vs_managers:
-        _vs_managers[contract_id] = ContractVectorStoreManager(
-            collection_name=f"cc_{contract_id[:8]}"
-        )
-    return _vs_managers[contract_id]
+def _get_claw_engine(contract_id: str) -> ClawEngine:
+    if contract_id not in _claw_engines:
+        _claw_engines[contract_id] = ClawEngine(collection_name=f"claw_{contract_id[:8]}")
+    return _claw_engines[contract_id]
 
-def _get_parent_retriever(contract_id: str) -> ContractParentDocumentRetriever:
-    if contract_id not in _parent_retrievers:
-        _parent_retrievers[contract_id] = ContractParentDocumentRetriever(
-            collection_name=f"cc_parent_{contract_id[:8]}"
-        )
-    return _parent_retrievers[contract_id]
 
 # ─── Authentication Dependency ────────────────────────────────────────────────
 
@@ -151,21 +138,21 @@ class LoginRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    mode: str = "Similarity Search"
+    mode: str = "claw_1_0"
     k: int = 5
     lambda_mult: float = 0.5
     full_context: bool = True
 
 class AnalyzeRequest(BaseModel):
-    mode: str = "Similarity Search"
+    mode: str = "claw_1_0"
     query: str = "Identify all termination clauses, liability caps, payment obligations, IP ownership, indemnification, and non-compete restrictions."
     k: int = 8
     lambda_mult: float = 0.5
 
 class CompareRequest(BaseModel):
     query: str
-    mode_a: str = "Similarity Search"
-    mode_b: str = "MMR (Diversity Mode)"
+    mode_a: str = "claw_1_0"
+    mode_b: str = "claw_1_0"
     k: int = 5
     lambda_mult: float = 0.5
     full_context: bool = True
@@ -182,43 +169,24 @@ class AnnotationRequest(BaseModel):
     note: str = ""
 
 
-# ─── Retriever Dispatch Utility ───────────────────────────────────────────────
+# ─── Claw 1.0 Retriever Dispatch ──────────────────────────────────────────────
 
 def _run_retriever(
-    vector_store,
-    parent_ret,
-    mode: str,
+    contract_id: str,
     query: str,
-    k: int,
-    lambda_mult: float,
-    full_context: bool,
+    raw_text: Optional[str] = None,
+    meta: Optional[Dict[str, Any]] = None,
 ):
-    if mode == "Similarity Search":
-        results = similarity_search_with_scores(vector_store, query, k=k)
-        docs = [{"content": d.page_content, "metadata": d.metadata, "score": s} for d, s in results]
-        return docs, {"type": "similarity"}
+    claw_eng = _get_claw_engine(contract_id)
+    if not claw_eng.parent_store and raw_text and raw_text.strip():
+        claw_eng.index_document(raw_text, meta or {"contract_id": contract_id})
 
-    elif mode in ("MMR (Diversity Mode)", "MMR"):
-        raw = mmr_search_documents(vector_store, query, k=k, lambda_mult=lambda_mult)
-        docs = [{"content": d.page_content, "metadata": d.metadata} for d in raw]
-        return docs, {"type": "mmr", "lambda": lambda_mult}
-
-    elif mode in ("Multi-Query Retriever", "Multi-Query"):
-        raw, variations = multi_query_search(vector_store, query, k=k)
-        docs = [{"content": d.page_content, "metadata": d.metadata} for d in raw]
-        return docs, {"type": "multi_query", "variations": variations}
-
-    elif mode in ("Self-Query Retriever", "Self-Query"):
-        raw, filter_dict, sem_q = self_query_search(vector_store, query, k=k)
-        docs = [{"content": d.page_content, "metadata": d.metadata} for d in raw]
-        return docs, {"type": "self_query", "filter": filter_dict, "semantic_query": sem_q}
-
-    elif mode in ("Parent Document Retriever", "Parent-Doc"):
-        raw = parent_ret.retrieve(query, k=k, full_context=full_context)
-        docs = [{"content": d.page_content, "metadata": d.metadata} for d in raw]
-        return docs, {"type": "parent_doc", "full_context": full_context}
-
-    return [], {}
+    docs, trace = claw_eng.retrieve(query)
+    info = {
+        "engine": claw_eng.get_engine_info(),
+        "trace": trace,
+    }
+    return docs, info
 
 
 # ─── Background Processing Task ───────────────────────────────────────────────
@@ -247,16 +215,9 @@ def process_and_index_contract_background(contract_id: str, file_bytes: bytes, f
             "filename": filename,
         })
 
-        # Indexing in ChromaDB vector store
-        vs_mgr = _get_vs_manager(contract_id)
-        parent_ret = _get_parent_retriever(contract_id)
-
-        chunks = vs_mgr.index_document(
-            raw_text, meta,
-            chunk_size=CHUNK_SIZE,
-            chunk_overlap=CHUNK_OVERLAP,
-        )
-        num_p, num_c = parent_ret.index_document(raw_text, meta)
+        # Indexing in Claw 1.0 engine
+        claw_eng = _get_claw_engine(contract_id)
+        trace = claw_eng.index_document(raw_text, meta)
 
         update_contract_status(
             contract_id, "indexed",
@@ -264,7 +225,7 @@ def process_and_index_contract_background(contract_id: str, file_bytes: bytes, f
             contract_type=meta.get("contract_type", "Other"),
             parties=meta.get("parties", ""),
         )
-        logger.info(f"Background task finished for {contract_id}: {len(chunks)} chunks indexed.")
+        logger.info(f"Background task finished for {contract_id}: Claw 1.0 indexed {trace.get('parent_count', 0)} parents, {trace.get('child_count', 0)} children.")
 
     except Exception as e:
         logger.error(f"Background processing error for {contract_id}: {e}")
@@ -412,18 +373,18 @@ def query_user_contract(
     if contract["status"] != "indexed":
         raise HTTPException(409, f"Contract status is '{contract['status']}'. Must be 'indexed' before querying.")
 
-    vs_mgr = _get_vs_manager(contract_id)
-    parent_ret = _get_parent_retriever(contract_id)
-
     docs, info = _run_retriever(
-        vs_mgr.get_vector_store(), parent_ret,
-        req.mode, req.query, req.k, req.lambda_mult, req.full_context,
+        contract_id=contract_id,
+        query=req.query,
+        raw_text=contract.get("raw_text"),
+        meta={"contract_id": contract_id, "filename": contract.get("filename", "")},
     )
 
     return {
         "contract_id": contract_id,
         "query": req.query,
-        "mode": req.mode,
+        "engine": info.get("engine", {"id": "claw_1_0", "name": "Claw 1.0", "description": "Contract intelligence engine"}),
+        "mode": "Claw 1.0",
         "results": docs,
         "info": info,
     }
@@ -448,12 +409,11 @@ def analyze_user_contract(
     except ValueError as e:
         raise HTTPException(402, str(e))
 
-    vs_mgr = _get_vs_manager(contract_id)
-    parent_ret = _get_parent_retriever(contract_id)
-
     docs, info = _run_retriever(
-        vs_mgr.get_vector_store(), parent_ret,
-        req.mode, req.query, req.k, req.lambda_mult, True,
+        contract_id=contract_id,
+        query=req.query,
+        raw_text=contract.get("raw_text"),
+        meta={"contract_id": contract_id, "filename": contract.get("filename", "")},
     )
 
     current_type = contract.get("contract_type", "Other")
@@ -481,7 +441,7 @@ def analyze_user_contract(
         contract_id=contract_id,
         user_id=user_id,
         query=req.query,
-        retriever_mode=req.mode,
+        retriever_mode="claw_1_0",
         results=analysis_result,
         overall_score=overall_score,
     )
@@ -492,7 +452,12 @@ def analyze_user_contract(
         "analysis_id": analysis_id,
         "contract_id": contract_id,
         "run_id": analysis_result.get("run_id", "run_latest"),
-        "retriever_mode": req.mode,
+        "engine": {
+            "id": "claw_1_0",
+            "name": "Claw 1.0",
+            "description": "Contract intelligence engine"
+        },
+        "retriever_mode": "Claw 1.0",
         "retrieval_info": info,
         "risks": analysis_result.get("risks", []),
         "checklist": analysis_result.get("checklist", []),

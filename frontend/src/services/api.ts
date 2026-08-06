@@ -201,7 +201,7 @@ export const getContract = async (contractId: string): Promise<Contract> => {
 export const queryContract = async (
   contractId: string,
   query: string,
-  mode: string,
+  mode = 'claw_1_0',
   k = 5,
   lambdaMult = 0.5,
 ): Promise<any> => {
@@ -211,10 +211,10 @@ export const queryContract = async (
   return res.data;
 };
 
-/** Full risk analysis via GPT-4o-mini */
+/** Full risk analysis via Groq / OpenAI */
 export const analyzeContract = async (
   contractId: string,
-  mode = 'Similarity Search',
+  mode = 'claw_1_0',
   k = 8,
 ): Promise<AnalysisResult> => {
   const res = await apiClient.post(`${V1}/contracts/${contractId}/analyze`, {

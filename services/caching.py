@@ -14,9 +14,17 @@ from config import DB_PATH
 
 logger = logging.getLogger("contractclaw.caching")
 
+# ─── Version Components for Cache Invalidation ───────────────────────────────
+# Changing ANY of these creates a cache miss for all documents.
 PARSER_VERSION = "parser_v4"
 PROMPT_BUNDLE_VERSION = "legal_pipeline_v7"
 PLAYBOOK_VERSION = "employment_v2"
+CLAW_ENGINE_VERSION = "claw_1_0"
+EMBEDDING_MODEL_VERSION = "text-embedding-3-small_v1"
+MMR_CONFIG_VERSION = "mmr_v1"
+CLAUSE_QUERY_VERSION = "clause_query_v1"
+SCORING_POLICY_VERSION = "scoring_v3_deterministic"
+SCHEMA_VERSION = "risk_schema_v2"
 
 
 def init_cache_db():
@@ -50,9 +58,15 @@ def compute_document_fingerprint(
     playbook_version: str = PLAYBOOK_VERSION
 ) -> Tuple[str, Dict[str, str]]:
     """
-    Computes sha256 fingerprint combining document text, stage_id, and prompt/parser versions.
+    Computes sha256 fingerprint combining document text, stage_id, and ALL version components.
+    Changing any version forces a cache miss.
     """
-    combined = f"{raw_text}:{stage_id}:{PARSER_VERSION}:{PROMPT_BUNDLE_VERSION}:{playbook_version}"
+    combined = (
+        f"{raw_text}:{stage_id}:{PARSER_VERSION}:{PROMPT_BUNDLE_VERSION}:"
+        f"{playbook_version}:{CLAW_ENGINE_VERSION}:{EMBEDDING_MODEL_VERSION}:"
+        f"{MMR_CONFIG_VERSION}:{CLAUSE_QUERY_VERSION}:{SCORING_POLICY_VERSION}:"
+        f"{SCHEMA_VERSION}"
+    )
     doc_hash = hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
     metadata = {
@@ -60,6 +74,12 @@ def compute_document_fingerprint(
         "parser_version": PARSER_VERSION,
         "prompt_bundle_version": PROMPT_BUNDLE_VERSION,
         "playbook_version": playbook_version,
+        "claw_engine_version": CLAW_ENGINE_VERSION,
+        "embedding_model_version": EMBEDDING_MODEL_VERSION,
+        "mmr_config_version": MMR_CONFIG_VERSION,
+        "clause_query_version": CLAUSE_QUERY_VERSION,
+        "scoring_policy_version": SCORING_POLICY_VERSION,
+        "schema_version": SCHEMA_VERSION,
     }
     return doc_hash, metadata
 

@@ -21,11 +21,7 @@ export const ComparisonLab: React.FC<ComparisonLabProps> = ({
   isLoading
 }) => {
   const retrieverOptions = [
-    'Similarity Search',
-    'MMR (Diversity Mode)',
-    'Multi-Query Retriever',
-    'Self-Query Retriever',
-    'Parent Document Retriever'
+    'Claw 1.0'
   ];
 
   return (

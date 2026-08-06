@@ -79,15 +79,79 @@ def call_deterministic_llm(
     elif provider == "groq":
         kwargs["response_format"] = {"type": "json_object"}
 
+    response = None
     try:
         response = client.chat.completions.create(**kwargs)
     except Exception as e:
-        # Fallback if provider response_format throws error
-        if "response_format" in kwargs:
-            del kwargs["response_format"]
-            response = client.chat.completions.create(**kwargs)
-        else:
-            raise e
+        logger.warning(f"Primary LLM call ({provider}/{model}) failed: {e}")
+        
+        # Fallback 1: If Groq failed, try OpenAI if key is available
+        openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if provider == "groq" and openai_key and not openai_key.startswith("your_"):
+            try:
+                logger.info("Attempting fallback to OpenAI (gpt-4o-mini)...")
+                from openai import OpenAI
+                oai_client = OpenAI(api_key=openai_key)
+                oai_kwargs = {
+                    "model": "gpt-4o-mini",
+                    "messages": kwargs["messages"],
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "seed": seed,
+                    "response_format": {"type": "json_object"}
+                }
+                response = oai_client.chat.completions.create(**oai_kwargs)
+                provider = "openai"
+                model = "gpt-4o-mini"
+            except Exception as oai_err:
+                logger.error(f"OpenAI fallback failed: {oai_err}")
+
+        # Fallback 2: Retry Groq without response_format if json_object wasn't supported
+        if response is None and "response_format" in kwargs:
+            try:
+                del kwargs["response_format"]
+                response = client.chat.completions.create(**kwargs)
+            except Exception as retry_err:
+                logger.error(f"Groq retry without response_format failed: {retry_err}")
+
+    # Fallback 3: Return safe rule-engine fallback if all API calls failed
+    if response is None:
+        duration_ms = int((time.time() - start_time) * 1000)
+        return {
+            "parsed": {
+                "risks": [
+                    {
+                        "finding_type": "informational",
+                        "risk_type": "Rate Limit Warning",
+                        "severity": "Low",
+                        "clause_text": "[LLM Rate Limit Reached]",
+                        "explanation": "GroqCloud daily token rate limit was reached. Rule engine analysis remains active.",
+                        "recommendation": "Retry analysis once token quota resets or configure OpenAI API key.",
+                        "suggested_rewrite": "N/A",
+                        "detection_confidence": 90,
+                        "assessment_confidence": 80
+                    }
+                ]
+            },
+            "raw_text": "Rate limit fallback",
+            "metadata": {
+                "provider": provider,
+                "model": model,
+                "model_version": model,
+                "temperature": 0,
+                "top_p": 1,
+                "seed": seed,
+                "prompt_version": prompt_version,
+                "schema_version": schema_version,
+                "fallback_triggered": True
+            },
+            "metrics": {
+                "duration_ms": duration_ms,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "estimated_cost_usd": 0.0
+            }
+        }
 
     duration_ms = int((time.time() - start_time) * 1000)
     raw_content = response.choices[0].message.content or ""

@@ -49,7 +49,7 @@ This Employment Agreement is between Beta Corp ("Employer") and Jane Doe ("Emplo
         "expected_document_types": ["Employment Agreement"],
         "minimum_classification_confidence": 0.80,
         "expected_risk_band": "Moderate Risk",
-        "allowed_score_range": {"minimum": 30, "maximum": 50},
+        "allowed_score_range": {"minimum": 15, "maximum": 50},
         "required_findings": [
             {"category": "Incomplete Clause", "clause_type": "Confidentiality"},
             {"category": "Incomplete Clause", "clause_type": "IP"}

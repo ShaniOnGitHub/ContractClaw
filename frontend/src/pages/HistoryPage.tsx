@@ -8,11 +8,12 @@ const riskClass: Record<string, string> = { Low: 'badge-risk-low', Medium: 'badg
 const scoreToRisk = (s: number) => s >= 70 ? 'High' : s >= 40 ? 'Medium' : 'Low';
 
 const modeShort: Record<string, string> = {
-  'Similarity Search':        'Similarity',
-  'MMR (Diversity Mode)':     'MMR',
-  'Multi-Query Retriever':    'Multi-Query',
-  'Self-Query Retriever':     'Self-Query',
-  'Parent Document Retriever':'Parent-Doc',
+  'Similarity Search':        'Claw 1.0',
+  'MMR (Diversity Mode)':     'Claw 1.0',
+  'Multi-Query Retriever':    'Claw 1.0',
+  'Self-Query Retriever':     'Claw 1.0',
+  'Parent Document Retriever':'Claw 1.0',
+  'claw_1_0':                 'Claw 1.0',
 };
 
 export const HistoryPage: React.FC = () => {

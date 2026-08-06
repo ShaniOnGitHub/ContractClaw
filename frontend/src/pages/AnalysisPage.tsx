@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  FileText, Sparkles, Flag, MessageSquare, Search, Zap,
-  Filter, Layers, AlertTriangle, ShieldCheck,
+  FileText, Sparkles, Flag, MessageSquare, Zap,
+  AlertTriangle, ShieldCheck,
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
 import { getContract, analyzeContract, listContracts, getAnnotations, saveAnnotation, generateRedlines } from '../services/api';
@@ -11,13 +11,12 @@ import { RedlineModal } from '../components/RedlineModal';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const MODES = [
-  { id: 'Similarity Search',        icon: Search   },
-  { id: 'MMR (Diversity Mode)',      icon: Zap      },
-  { id: 'Multi-Query Retriever',     icon: Sparkles },
-  { id: 'Self-Query Retriever',      icon: Filter   },
-  { id: 'Parent Document Retriever', icon: Layers   },
-];
+const ENGINE_INFO = {
+  id: 'claw_1_0',
+  name: 'Claw 1.0',
+  subtitle: 'Contract intelligence engine',
+  description: 'Precise retrieval, full clause context, evidence grounded analysis'
+};
 
 const categoryConfig: Record<string, { label: string; badgeCls: string; bg: string; border: string }> = {
   critical_risk:           { label: 'CRITICAL RISK',            badgeCls: 'bg-red-100 text-red-800 border border-red-200 font-bold',       bg: 'var(--risk-high-bg)', border: 'var(--risk-high-border)' },
@@ -197,7 +196,7 @@ export const AnalysisPage: React.FC = () => {
   const [contract, setContract] = useState<Contract | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedId, setSelectedId] = useState<string>(contractId || '');
-  const [activeMode, setActiveMode] = useState('Similarity Search');
+  const activeMode = 'claw_1_0';
   const [analyzing, setAnalyzing] = useState(false);
   const [risks, setRisks] = useState<RiskFinding[]>([]);
   const [score, setScore] = useState<number | null>(null);
@@ -351,27 +350,23 @@ export const AnalysisPage: React.FC = () => {
 
           {/* Right pane — analysis */}
           <div style={{ ...pane }}>
-            {/* Mode selector */}
-            <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 9, padding: 4, display: 'flex', gap: 2 }}>
-              {MODES.map(({ id, icon: Icon }) => (
-                <button key={id}
-                  onClick={() => setActiveMode(id)}
-                  title={id}
-                  style={{
-                    flex: 1, padding: '6px 4px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 3, transition: 'all .12s',
-                    background: activeMode === id ? 'var(--bg-surface)' : 'transparent',
-                    color: activeMode === id ? 'var(--accent)' : 'var(--text-muted)',
-                    boxShadow: activeMode === id ? 'var(--shadow-card)' : 'none',
-                  }}
-                >
-                  <Icon size={12} />
-                  <span style={{ display: 'none' }}>{id}</span>
-                </button>
-              ))}
+            {/* Claw 1.0 Engine Display */}
+            <div className="card" style={{ borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--accent-bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>
+                  <Zap size={18} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{ENGINE_INFO.name}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', textTransform: 'uppercase' }}>Active Engine</span>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginTop: 1 }}>
+                    {ENGINE_INFO.subtitle} · {ENGINE_INFO.description}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: -8 }}>{activeMode}</div>
 
             {/* Error */}
             {error && (
@@ -386,7 +381,7 @@ export const AnalysisPage: React.FC = () => {
                 <Sparkles size={28} color="var(--accent)" />
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>No analysis run yet</div>
                 <div style={{ fontSize: 12, maxWidth: 280 }}>
-                  Click <strong>Run Risk Analysis</strong> above to extract clause-by-clause risks using {activeMode}.
+                  Click <strong>Run Risk Analysis</strong> above to extract clause-by-clause risks using <strong>Claw 1.0</strong>.
                 </div>
               </div>
             )}

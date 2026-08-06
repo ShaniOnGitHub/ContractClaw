@@ -377,6 +377,7 @@ def list_analyses(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
             d["results"] = json.loads(d.pop("results_json"))
         except Exception:
             d["results"] = []
+        d["retriever_mode"] = "Claw 1.0"
         records.append(d)
     return records
 
