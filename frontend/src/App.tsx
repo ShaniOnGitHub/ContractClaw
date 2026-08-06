@@ -9,6 +9,7 @@ import { DashboardPage }      from './pages/DashboardPage';
 import { ContractsListPage }  from './pages/ContractsListPage';
 import { UploadPage }         from './pages/UploadPage';
 import { AnalysisPage }       from './pages/AnalysisPage';
+import { ComparePage }        from './pages/ComparePage';
 import { HistoryPage }        from './pages/HistoryPage';
 import { SettingsPage }       from './pages/SettingsPage';
 import { PlaybooksPage }      from './pages/PlaybooksPage';
@@ -28,11 +29,13 @@ const ProtectedLayout: React.FC = () => {
         <Header />
         <ErrorBoundary>
           <Routes>
+            <Route path="/"                      element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard"             element={<DashboardPage />} />
             <Route path="/contracts"             element={<ContractsListPage />} />
             <Route path="/upload"                element={<UploadPage />} />
             <Route path="/analysis/:contractId"  element={<AnalysisPage />} />
             <Route path="/analysis"              element={<AnalysisPage />} />
+            <Route path="/compare"               element={<ComparePage />} />
             <Route path="/playbooks"             element={<PlaybooksPage />} />
             <Route path="/history"               element={<HistoryPage />} />
             <Route path="/settings"              element={<SettingsPage />} />

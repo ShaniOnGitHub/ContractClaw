@@ -119,6 +119,23 @@ def test_claw_engine_heading_only_clause_completeness():
     assert "lacks operative legal language" in ip_summary or "does not contain detailed assignment" in ip_summary
 
 
+def test_claw_engine_inline_clause_values_are_not_misread_as_headings():
+    """Regression: inline label-plus-value clauses should count as present_complete."""
+    cases = [
+        ("Start Date", "Start Date: 1 September 2026"),
+        ("Working Hours", "Working Hours: 40 hours per week"),
+        ("Leave", "Paid Leave: 25 business days annually."),
+        ("Governing Law", "Governing Law: Germany."),
+        ("Parties", "Employer: Example Technologies Ltd. Employee: John Doe."),
+    ]
+
+    for clause_name, clause_text in cases:
+        status, summary = evaluate_clause_completeness(
+            clause_name, clause_text, found=True, contract_type="Employment Agreement"
+        )
+        assert status == "present_complete", f"{clause_name} was misread as {status}: {summary}"
+
+
 def test_claw_engine_controlled_fallback():
     """Test 10 & 11: Weak retrieval triggers controlled fallback."""
     engine = ClawEngine(collection_name="test_claw_fallback")

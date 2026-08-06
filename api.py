@@ -176,15 +176,21 @@ def _run_retriever(
     query: str,
     raw_text: Optional[str] = None,
     meta: Optional[Dict[str, Any]] = None,
+    k: Optional[int] = None,
+    lambda_mult: Optional[float] = None,
+    full_context: Optional[bool] = None,
 ):
     claw_eng = _get_claw_engine(contract_id)
     if not claw_eng.parent_store and raw_text and raw_text.strip():
         claw_eng.index_document(raw_text, meta or {"contract_id": contract_id})
 
-    docs, trace = claw_eng.retrieve(query)
+    docs, trace = claw_eng.retrieve(query, k=k, lambda_mult=lambda_mult)
     info = {
         "engine": claw_eng.get_engine_info(),
         "trace": trace,
+        "requested_k": k,
+        "requested_lambda_mult": lambda_mult,
+        "full_context": full_context,
     }
     return docs, info
 
@@ -378,6 +384,9 @@ def query_user_contract(
         query=req.query,
         raw_text=contract.get("raw_text"),
         meta={"contract_id": contract_id, "filename": contract.get("filename", "")},
+        k=req.k,
+        lambda_mult=req.lambda_mult,
+        full_context=req.full_context,
     )
 
     return {
@@ -397,6 +406,9 @@ def analyze_user_contract(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     user_id = current_user["id"]
+    user_email = str(current_user.get("email", "")).lower().strip()
+    user_tier = str(current_user.get("tier", "")).lower().strip()
+    is_unlimited_user = user_email == "admin@contractclaw.ai" or user_email == os.getenv("CONTRACTCLAW_CREATOR_EMAIL", "admin@contractclaw.ai").lower().strip() or user_tier in {"creator", "admin", "pro", "enterprise", "unlimited"}
     contract = get_contract(contract_id, user_id=user_id)
     if not contract:
         raise HTTPException(404, f"Contract {contract_id} not found.")
@@ -405,7 +417,7 @@ def analyze_user_contract(
 
     # Deduct credit for user
     try:
-        remaining = deduct_credit(user_id)
+        remaining = -1 if is_unlimited_user else deduct_credit(user_id)
     except ValueError as e:
         raise HTTPException(402, str(e))
 
@@ -414,6 +426,9 @@ def analyze_user_contract(
         query=req.query,
         raw_text=contract.get("raw_text"),
         meta={"contract_id": contract_id, "filename": contract.get("filename", "")},
+        k=req.k,
+        lambda_mult=req.lambda_mult,
+        full_context=None,
     )
 
     current_type = contract.get("contract_type", "Other")
@@ -428,6 +443,7 @@ def analyze_user_contract(
         analysis_result = analyze_contract_risks(
             chunks=docs,
             contract_type=current_type,
+            full_text=contract.get("raw_text"),
         )
     except ValueError as e:
         raise HTTPException(400, str(e))

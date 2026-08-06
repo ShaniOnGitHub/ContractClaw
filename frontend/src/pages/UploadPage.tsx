@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileText, CheckCircle2, Loader2, ArrowRight, X, AlertCircle } from 'lucide-react';
-import { uploadContract } from '../services/api';
+import { uploadContract, getContract } from '../services/api';
 
 type UploadStatus = 'idle' | 'uploading' | 'indexing' | 'done' | 'error';
 
@@ -26,8 +26,15 @@ const statusLabel: Record<UploadStatus, { text: string; color: string }> = {
 export const UploadPage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollTimersRef = useRef<Record<string, number>>({});
   const [dragOver, setDragOver] = useState(false);
   const [queue, setQueue] = useState<UploadItem[]>([]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(pollTimersRef.current).forEach(timer => window.clearInterval(timer));
+    };
+  }, []);
 
   const setItemState = (id: string, patch: Partial<UploadItem>) =>
     setQueue(prev => prev.map(q => q.id === id ? { ...q, ...patch } : q));
@@ -38,11 +45,37 @@ export const UploadPage: React.FC = () => {
       setItemState(item.id, { status: 'uploading', progress: 30 });
       const uploadResult = await uploadContract(item.file);
       setItemState(item.id, {
-        status: 'done',
-        progress: 100,
+        status: 'indexing',
+        progress: 70,
         contractId: uploadResult.contract_id,
         contractType: uploadResult.contract_type || 'PDF Document'
       });
+
+      const poll = window.setInterval(async () => {
+        try {
+          const contract = await getContract(uploadResult.contract_id);
+          if (contract.status === 'indexed') {
+            window.clearInterval(poll);
+            delete pollTimersRef.current[item.id];
+            setItemState(item.id, {
+              status: 'done',
+              progress: 100,
+              contractType: contract.contract_type || uploadResult.contract_type || 'PDF Document',
+            });
+          } else if (contract.status === 'error') {
+            window.clearInterval(poll);
+            delete pollTimersRef.current[item.id];
+            setItemState(item.id, {
+              status: 'error',
+              errorMsg: contract.error_message || 'Indexing failed',
+              progress: 0,
+            });
+          }
+        } catch (pollErr) {
+          console.error('Polling contract status failed', pollErr);
+        }
+      }, 2000);
+      pollTimersRef.current[item.id] = poll;
     } catch (err: any) {
       const msg = err?.response?.data?.detail || err?.message || 'Upload failed';
       setItemState(item.id, { status: 'error', errorMsg: msg, progress: 0 });

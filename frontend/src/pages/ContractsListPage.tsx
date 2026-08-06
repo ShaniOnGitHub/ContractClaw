@@ -12,16 +12,33 @@ export const ContractsListPage: React.FC = () => {
   const navigate = useNavigate();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [riskFilter, setRiskFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState<'date' | 'risk' | 'name'>('date');
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    listContracts()
-      .then(r => setContracts(r.contracts))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await listContracts();
+        if (!alive) return;
+        setContracts(r.contracts);
+        setLastUpdated(new Date());
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 12000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const filtered = contracts
@@ -50,12 +67,16 @@ export const ContractsListPage: React.FC = () => {
   return (
     <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 22, height: '100%', overflowY: 'auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Contracts</h1>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
             Full contract library. Click any row to view clause risk analysis.
           </p>
+          <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>
+            <span className="status-dot" style={{ width: 8, height: 8, boxShadow: 'none', animation: 'none' }} />
+            {lastUpdated ? `Synced ${lastUpdated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Syncing live library'}
+          </div>
         </div>
         <button className="btn-primary" onClick={() => navigate('/upload')}>
           <UploadCloud size={14} /> Upload Contract

@@ -18,6 +18,12 @@ export const SettingsPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const isUnlimited = (user?.tier || '').toLowerCase() === 'creator'
+    || (user?.tier || '').toLowerCase() === 'admin'
+    || (user?.credits_remaining ?? 15) < 0;
+  const creditsLabel = isUnlimited ? 'Unlimited' : `${user?.credits_remaining ?? 15} / 15`;
+  const tierLabel = isUnlimited ? 'Creator Tier' : `${user?.tier || 'Free'} Tier`;
+
   useEffect(() => {
     getMe().then(setUser).catch(console.error);
   }, []);
@@ -58,11 +64,11 @@ export const SettingsPage: React.FC = () => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
             <span>Account Tier:</span>
-            <span style={{ fontWeight: 600, color: 'var(--accent)', textTransform: 'capitalize' }}>{user?.tier || 'Free'} Tier</span>
+            <span style={{ fontWeight: 600, color: 'var(--accent)', textTransform: 'capitalize' }}>{tierLabel}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
             <span>Credits Remaining:</span>
-            <strong style={{ color: 'var(--text-primary)' }}>{user?.credits_remaining ?? 15} / 15</strong>
+            <strong style={{ color: 'var(--text-primary)' }}>{creditsLabel}</strong>
           </div>
         </div>
       </div>

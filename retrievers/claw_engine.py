@@ -392,6 +392,8 @@ class ClawEngine:
         self,
         query: str,
         clause_type: str = "general_review",
+        k: Optional[int] = None,
+        lambda_mult: Optional[float] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Claw 1.0 retrieval flow:
@@ -412,7 +414,12 @@ class ClawEngine:
         normalized_query = self._build_query(query, clause_type)
 
         # Step 2-6: Execute retrieval with fallback
-        parents, trace = self._execute_retrieval(normalized_query, attempt=1)
+        parents, trace = self._execute_retrieval(
+            normalized_query,
+            attempt=1,
+            k=k,
+            lambda_mult=lambda_mult,
+        )
 
         # Controlled fallback
         if trace.get("top_confidence", 1.0) < self.config["min_retrieval_confidence"]:
@@ -426,6 +433,8 @@ class ClawEngine:
                     expanded_query,
                     attempt=2,
                     fetch_k=self.config["fallback_fetch_k"],
+                    k=k,
+                    lambda_mult=lambda_mult,
                 )
                 if len(parents_fb) > len(parents):
                     parents = parents_fb
@@ -475,13 +484,15 @@ class ClawEngine:
         query: str,
         attempt: int = 1,
         fetch_k: Optional[int] = None,
+        k: Optional[int] = None,
+        lambda_mult: Optional[float] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Executes MMR search on child chunks and resolves to parent clauses.
         """
-        k = self.config["mmr_k"]
+        k = k if k is not None else self.config["mmr_k"]
         fk = fetch_k or self.config["mmr_fetch_k"]
-        lambda_mult = self.config["mmr_lambda_mult"]
+        lambda_mult = lambda_mult if lambda_mult is not None else self.config["mmr_lambda_mult"]
 
         # MMR search on child chunks
         try:

@@ -249,6 +249,29 @@ export const AnalysisPage: React.FC = () => {
     setRisks([]); setChecklist([]); setScore(null); setSummary(''); setError('');
   }, [selectedId]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const latest = await getContract(selectedId);
+        if (alive) {
+          setContract(latest);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [selectedId]);
+
   // Sync URL param
   useEffect(() => {
     if (contractId && contractId !== selectedId) {
@@ -316,12 +339,12 @@ export const AnalysisPage: React.FC = () => {
         {/* Action button */}
         <button
           onClick={runAnalysis}
-          disabled={analyzing || !selectedId}
+          disabled={analyzing || !selectedId || contract?.status !== 'indexed'}
           className="btn-primary"
-          style={{ opacity: analyzing || !selectedId ? .6 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+          style={{ opacity: analyzing || !selectedId || contract?.status !== 'indexed' ? .6 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
         >
           {analyzing ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={13} />}
-          {analyzing ? 'Analyzing Risks…' : 'Run Risk Analysis'}
+          {analyzing ? 'Analyzing Risks…' : contract?.status !== 'indexed' ? 'Waiting for Indexing…' : 'Run Risk Analysis'}
         </button>
       </div>
 

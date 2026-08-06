@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Settings, ChevronLeft, ChevronRight,
-  UserCheck, ShieldCheck, LogOut, BookOpen
+  UserCheck, ShieldCheck, LogOut, BookOpen, Columns3
 } from 'lucide-react';
 import { getCredits, getMe } from '../services/api';
 import type { UserProfile } from '../services/api';
@@ -44,14 +44,20 @@ export const Sidebar: React.FC<SidebarProps> = () => {
   const nav = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/contracts', label: 'Contracts', icon: FileText },
+    { to: '/compare', label: 'Compare', icon: Columns3 },
     { to: '/playbooks', label: 'Playbooks', icon: BookOpen },
     { to: '/settings',  label: 'Settings',  icon: Settings },
   ];
 
 
   const maxCredits = 15;
+  const isUnlimited = (user?.tier || '').toLowerCase() === 'creator'
+    || (user?.tier || '').toLowerCase() === 'admin'
+    || (user?.credits_remaining ?? credits ?? maxCredits) < 0;
   const creditsDisplay = credits ?? user?.credits_remaining ?? maxCredits;
-  const pct = Math.max(0, Math.min(100, (creditsDisplay / maxCredits) * 100));
+  const pct = isUnlimited ? 100 : Math.max(0, Math.min(100, (creditsDisplay / maxCredits) * 100));
+  const creditsLabel = isUnlimited ? 'Unlimited' : `${creditsDisplay} / ${maxCredits}`;
+  const tierLabel = isUnlimited ? 'Creator Tier' : `${user?.tier || 'Free'} Tier`;
 
   const email = user?.email || 'User';
   const initial = email.charAt(0).toUpperCase();
@@ -67,7 +73,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>ContractClaw</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Enterprise AI</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="status-dot" />
+                Live analysis suite
+              </div>
             </div>
           </div>
         )}
@@ -99,7 +108,9 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 14 }}>
         {!collapsed && (
           <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Credits remaining</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
+              {isUnlimited ? 'Credits status' : 'Credits remaining'}
+            </div>
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 999, overflow: 'hidden', margin: '6px 0' }}>
               <div style={{
                 width: `${pct}%`, height: '100%', borderRadius: 999, transition: 'width .4s ease',
@@ -107,8 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>{creditsDisplay} / {maxCredits}</span>
-              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{user?.tier || 'Free'} Tier</span>
+              <span>{creditsLabel}</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{tierLabel}</span>
             </div>
           </div>
         )}

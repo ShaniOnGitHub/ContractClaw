@@ -17,13 +17,13 @@ logger = logging.getLogger("contractclaw.caching")
 # ─── Version Components for Cache Invalidation ───────────────────────────────
 # Changing ANY of these creates a cache miss for all documents.
 PARSER_VERSION = "parser_v4"
-PROMPT_BUNDLE_VERSION = "legal_pipeline_v7"
+PROMPT_BUNDLE_VERSION = "legal_pipeline_v9"
 PLAYBOOK_VERSION = "employment_v2"
 CLAW_ENGINE_VERSION = "claw_1_0"
 EMBEDDING_MODEL_VERSION = "text-embedding-3-small_v1"
 MMR_CONFIG_VERSION = "mmr_v1"
 CLAUSE_QUERY_VERSION = "clause_query_v1"
-SCORING_POLICY_VERSION = "scoring_v3_deterministic"
+SCORING_POLICY_VERSION = "scoring_v4_deterministic"
 SCHEMA_VERSION = "risk_schema_v2"
 
 

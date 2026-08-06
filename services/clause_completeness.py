@@ -47,9 +47,20 @@ def evaluate_clause_completeness(
         else:
             return "missing_expected", f"Standard {clause_type} clause was not detected in the analyzed text."
 
-    # Heading-only check: Short excerpt under 40 chars or ending in a bare title
+    # Heading-only check: bare titles without operative/value language
     words = text_clean.split()
-    if len(words) <= 5 or re.fullmatch(r"^\d*\.?\s*(confidentiality|intellectual property|ip|termination|governing law)\.?$", text_lower):
+    has_value_language = bool(
+        re.search(r"\d", text_clean)
+        or ":" in text_clean
+        or any(k in text_lower for k in (
+            "shall", "entitled", "pay", "days", "hours", "year", "month", "week", "salary",
+            "benefits", "notice", "governed", "mediation", "insurance", "pension", "leave",
+        ))
+    )
+    if (
+        (":" not in text_clean and len(words) <= 5 and not has_value_language)
+        or re.fullmatch(r"^\d*\.?\s*(confidentiality|intellectual property|ip|termination|governing law)\.?$", text_lower)
+    ):
         return "mentioned_incomplete", f"The agreement references {clause_type} as a heading but lacks operative legal language."
 
     # Confidentiality Operative Language Check

@@ -36,7 +36,11 @@ import re
 import time
 import logging
 from typing import List, Dict, Any, Tuple, Optional
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional local dependency
+    def load_dotenv(*args, **kwargs):
+        return False
 
 # Ensure .env is loaded
 load_dotenv()
@@ -157,6 +161,33 @@ def _build_text_excerpt(chunks: List[Dict[str, Any]], max_chars: int = 6000) -> 
     return "\n\n---\n\n".join(parts)
 
 
+def _find_clause_excerpt(text: str, patterns: List[str], max_chars: int = 1200) -> Optional[str]:
+    """Extract a clause-like excerpt from the full contract text using label and heading heuristics."""
+    if not text.strip():
+        return None
+
+    for pattern in patterns:
+        label_pattern = re.compile(
+            rf"(?im)^\s*(?:\d+[\.\)]\s*)?(?:{pattern})\s*[:\-–]?\s*(.+)$"
+        )
+        match = label_pattern.search(text)
+        if match:
+            excerpt = match.group(0).strip()
+            if excerpt:
+                return excerpt[:max_chars]
+
+        heading_pattern = re.compile(
+            rf"(?is)(?:^|\n)\s*(?:\d+[\.\)]\s*)?(?:{pattern})(.*?)(?=\n\s*(?:\d+[\.\)]\s*)?[A-Z][^\n:]{{2,80}}(?:[:\-–]|\n)|\Z)"
+        )
+        match = heading_pattern.search(text)
+        if match:
+            excerpt = f"{pattern}: {match.group(1).strip()}".strip()
+            if excerpt and len(excerpt) > len(pattern):
+                return excerpt[:max_chars]
+
+    return None
+
+
 def _detect_rule_based_risk_findings(text: str, contract_type: str) -> List[Dict[str, Any]]:
     """Deterministic rule-based risk detection for critical contract hazards."""
     findings = []
@@ -198,6 +229,7 @@ def _detect_rule_based_risk_findings(text: str, contract_type: str) -> List[Dict
 def analyze_contract_risks(
     chunks: List[Dict[str, Any]],
     contract_type: str = "Other",
+    full_text: Optional[str] = None,
     playbook_rules: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
@@ -214,6 +246,7 @@ def analyze_contract_risks(
     from services.caching import get_cached_stage_output, set_cached_stage_output
 
     text_excerpt = _build_text_excerpt(chunks)
+    analysis_text = full_text.strip() if isinstance(full_text, str) and full_text.strip() else text_excerpt
     if not text_excerpt.strip():
         return {
             "risks": [],
@@ -229,7 +262,8 @@ def analyze_contract_risks(
     run_id = tracer.run_id
 
     # Check Cache
-    cached_output = get_cached_stage_output(text_excerpt, "risk_analysis")
+    cache_source_text = analysis_text if full_text else text_excerpt
+    cached_output = get_cached_stage_output(cache_source_text, "risk_analysis")
     if cached_output:
         cached_output["run_id"] = run_id
         score = cached_output.get("overall_score", 0)
@@ -241,7 +275,7 @@ def analyze_contract_risks(
     start_ms = int(time.time() * 1000)
 
     # Stage 1: Document Parsing / Chunk Assembly Log
-    tracer.log_stage("document_parsing", "completed", 5, data={"chunks_count": len(chunks), "chars": len(text_excerpt)})
+    tracer.log_stage("document_parsing", "completed", 5, data={"chunks_count": len(chunks), "chars": len(analysis_text)})
 
     # Stage 3: Document Classification Log
     from services.document_classifier import classify_document
@@ -357,25 +391,25 @@ def analyze_contract_risks(
 
     # Stage 9: Generate 6-State Completeness Checklist from text_excerpt
     key_patterns = {
+        "parties": [r"employer", r"employee", r"parties"],
+        "job_title": [r"job title", r"position", r"role"],
+        "start_date": [r"start date", r"commencement date", r"effective date"],
         "confidentiality": [r"confidentiality", r"confidential information"],
         "intellectual_property": [r"intellectual property", r"work product", r"inventions"],
         "termination": [r"term and termination", r"termination"],
         "governing_law": [r"governing law", r"jurisdiction"],
         "salary": [r"salary", r"compensation", r"base salary"],
+        "working_hours": [r"working hours", r"hours of work", r"working time"],
+        "leave": [r"paid leave", r"annual leave", r"\bleave\b"],
         "benefits": [r"benefits", r"health insurance", r"pension"],
         "non_compete": [r"non-compete", r"non compete", r"covenant not to compete"],
         "limitation_of_liability": [r"limitation of liability", r"liability cap"],
-        "dispute_resolution": [r"dispute resolution", r"arbitration"],
+        "dispute_resolution": [r"dispute resolution", r"arbitration", r"mediation"],
     }
 
     extracted_clauses = {}
     for key, patterns in key_patterns.items():
-        found_text = None
-        for pat in patterns:
-            match = re.search(r"(?i)(?:^|\n)(?:\d+\.|\b)\s*(" + pat + r".*?)(?=\n\d+\.|\Z)", text_excerpt, re.DOTALL)
-            if match:
-                found_text = match.group(1).strip()[:1200]
-                break
+        found_text = _find_clause_excerpt(analysis_text, patterns)
         if not found_text:
             for r in normalized_risks:
                 if key in str(r.get("risk_type", "")).lower() or key in str(r.get("category", "")).lower():
@@ -438,12 +472,16 @@ def analyze_contract_risks(
     result["execution_status"] = execution_status
 
     # Stage 16: Executive Summary Generation
-    client, provider, model_name = _get_llm_client()
-    result["summary"] = _generate_synced_summary(client, provider, model_name, primary_type, overall_score, risk_level, normalized_risks)
+    try:
+        client, provider, model_name = _get_llm_client()
+        result["summary"] = _generate_synced_summary(client, provider, model_name, primary_type, overall_score, risk_level, normalized_risks)
+    except Exception as e:
+        logger.warning(f"Summary generation fallback used: {e}")
+        result["summary"] = _build_deterministic_summary(primary_type, overall_score, risk_level, normalized_risks)
 
     result["run_id"] = run_id
     tracer.finish_run(primary_type, overall_score, risk_level)
-    set_cached_stage_output(text_excerpt, "risk_analysis", result)
+    set_cached_stage_output(cache_source_text, "risk_analysis", result)
 
     return result
 
@@ -639,6 +677,25 @@ Rules:
         logger.warning(f"Executive summary generation error: {e}")
 
     return f"This contract has been analyzed as {risk_level} with a contract risk score of {overall_score} out of 100 based on standard policy parameters."
+
+
+def _build_deterministic_summary(
+    contract_type: str,
+    overall_score: int,
+    risk_level: str,
+    risks: List[Dict[str, Any]],
+) -> str:
+    critical_count = sum(1 for risk in risks if risk.get("finding_type") == "critical_risk")
+    missing_count = sum(1 for risk in risks if risk.get("finding_type") == "missing_clause")
+    ambiguous_count = sum(1 for risk in risks if risk.get("finding_type") == "ambiguous_language")
+    total_count = len(risks)
+
+    return (
+        f"Deterministic analysis completed for {contract_type}. "
+        f"The contract is rated {overall_score}/100 ({risk_level}). "
+        f"It contains {total_count} findings, including {critical_count} critical items, "
+        f"{missing_count} missing clauses, and {ambiguous_count} ambiguous provisions."
+    )
 
 
 def _generate_fallback_checklist(contract_type: str, risks: List[Dict[str, Any]]) -> List[Dict[str, str]]:

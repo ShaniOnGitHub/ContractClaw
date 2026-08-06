@@ -1,6 +1,11 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional local dependency
+    def load_dotenv(*args, **kwargs):
+        return False
 
 # Load environment variables
 load_dotenv()

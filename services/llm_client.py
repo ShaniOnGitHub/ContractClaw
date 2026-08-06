@@ -11,7 +11,11 @@ import re
 import time
 import logging
 from typing import Dict, Any, Tuple, Optional
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional local dependency
+    def load_dotenv(*args, **kwargs):
+        return False
 
 load_dotenv()
 
@@ -42,6 +46,49 @@ def get_deterministic_llm_client() -> Tuple[Any, str, str]:
     raise ValueError("No LLM API key configured. Please set GROQ_API_KEY or OPENAI_API_KEY in .env.")
 
 
+def _build_fallback_response(reason: str, prompt_version: str, schema_version: str, seed: int) -> Dict[str, Any]:
+    duration_ms = 0
+    safe_summary = f"Deterministic fallback used because {reason}. The analysis still completed with rule-based evidence."
+    return {
+        "parsed": {
+            "risks": [
+                {
+                    "finding_type": "informational",
+                    "risk_type": "Deterministic Fallback",
+                    "severity": "Low",
+                    "clause_text": "[LLM unavailable]",
+                    "explanation": safe_summary,
+                    "recommendation": "Review the deterministic findings shown below; connect an LLM key later for richer narrative output.",
+                    "suggested_rewrite": "N/A",
+                }
+            ],
+            "checklist": [],
+            "obligations": [],
+            "overall_score": 0,
+            "risk_level": "Low Risk",
+            "summary": safe_summary,
+        },
+        "raw_text": safe_summary,
+        "metadata": {
+            "provider": "fallback",
+            "model": "rule-engine",
+            "model_version": "rule-engine",
+            "temperature": 0,
+            "top_p": 1,
+            "seed": seed,
+            "prompt_version": prompt_version,
+            "schema_version": schema_version,
+            "fallback_triggered": True,
+        },
+        "metrics": {
+            "duration_ms": duration_ms,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "estimated_cost_usd": 0.0,
+        },
+    }
+
+
 def call_deterministic_llm(
     prompt: str,
     system_prompt: str = "You are a precise legal contract analyst. Always return valid JSON.",
@@ -59,8 +106,12 @@ def call_deterministic_llm(
           - "metadata": dict with provider, model, temperature, top_p, seed, versions
           - "metrics": dict with duration_ms, input_tokens, output_tokens, estimated_cost_usd
     """
-    client, provider, model = get_deterministic_llm_client()
     start_time = time.time()
+    try:
+        client, provider, model = get_deterministic_llm_client()
+    except Exception as e:
+        logger.warning(f"Deterministic LLM client unavailable: {e}")
+        return _build_fallback_response(str(e), prompt_version, schema_version, seed)
 
     kwargs: Dict[str, Any] = {
         "model": model,
@@ -116,42 +167,13 @@ def call_deterministic_llm(
 
     # Fallback 3: Return safe rule-engine fallback if all API calls failed
     if response is None:
-        duration_ms = int((time.time() - start_time) * 1000)
-        return {
-            "parsed": {
-                "risks": [
-                    {
-                        "finding_type": "informational",
-                        "risk_type": "Rate Limit Warning",
-                        "severity": "Low",
-                        "clause_text": "[LLM Rate Limit Reached]",
-                        "explanation": "GroqCloud daily token rate limit was reached. Rule engine analysis remains active.",
-                        "recommendation": "Retry analysis once token quota resets or configure OpenAI API key.",
-                        "suggested_rewrite": "N/A",
-                        "detection_confidence": 90,
-                        "assessment_confidence": 80
-                    }
-                ]
-            },
-            "raw_text": "Rate limit fallback",
-            "metadata": {
-                "provider": provider,
-                "model": model,
-                "model_version": model,
-                "temperature": 0,
-                "top_p": 1,
-                "seed": seed,
-                "prompt_version": prompt_version,
-                "schema_version": schema_version,
-                "fallback_triggered": True
-            },
-            "metrics": {
-                "duration_ms": duration_ms,
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "estimated_cost_usd": 0.0
-            }
-        }
+        logger.warning("LLM request failed; returning deterministic fallback response.")
+        return _build_fallback_response(
+            "the configured LLM request could not be completed",
+            prompt_version,
+            schema_version,
+            seed,
+        )
 
     duration_ms = int((time.time() - start_time) * 1000)
     raw_content = response.choices[0].message.content or ""

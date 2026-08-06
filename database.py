@@ -10,11 +10,15 @@ Tables:
 import sqlite3
 import json
 import uuid
+import os
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from config import DB_PATH, FREE_TIER_CREDITS
 from services.auth import hash_password
+
+CREATOR_EMAIL = os.getenv("CONTRACTCLAW_CREATOR_EMAIL", "admin@contractclaw.ai").lower().strip()
+UNLIMITED_TIERS = {"creator", "admin", "pro", "enterprise", "unlimited"}
 
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
@@ -176,14 +180,30 @@ def seed_default_user(conn: sqlite3.Connection) -> None:
     if not row:
         conn.execute(
             """INSERT INTO users (id, email, password_hash, credits_remaining, tier, created_at)
-               VALUES (?, ?, ?, ?, 'free', ?)""",
-            ("default", "admin@contractclaw.ai", pwd, FREE_TIER_CREDITS, now),
+               VALUES (?, ?, ?, ?, 'creator', ?)""",
+            ("default", CREATOR_EMAIL, pwd, -1, now),
         )
     else:
         conn.execute(
-            "UPDATE users SET email = ?, password_hash = ? WHERE id = ?",
-            ("admin@contractclaw.ai", pwd, row["id"]),
+            "UPDATE users SET email = ?, password_hash = ?, credits_remaining = ?, tier = ? WHERE id = ? OR email = ?",
+            (CREATOR_EMAIL, pwd, -1, "creator", row["id"], CREATOR_EMAIL),
         )
+
+
+def _normalize_user_record(user: Dict[str, Any]) -> Dict[str, Any]:
+    """Marks creator accounts as unlimited so the product owner is never credit-blocked."""
+    if not user:
+        return user
+
+    email = str(user.get("email", "")).lower().strip()
+    tier = str(user.get("tier", "")).lower().strip()
+    user_id = str(user.get("id", "")).strip()
+    is_creator = email == CREATOR_EMAIL or user_id == "default" or tier in UNLIMITED_TIERS
+
+    if is_creator:
+        user["tier"] = "creator"
+        user["credits_remaining"] = -1
+    return user
 
 
 # ─── User Authentication & Credits ───────────────────────────────────────────
@@ -208,13 +228,13 @@ def create_user(email: str, password_hash: str) -> Dict[str, Any]:
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
-    return dict(row) if row else None
+    return _normalize_user_record(dict(row)) if row else None
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    return dict(row) if row else None
+    return _normalize_user_record(dict(row)) if row else None
 
 
 def delete_user_account(user_id: str) -> None:
@@ -231,6 +251,10 @@ def deduct_credit(user_id: str) -> int:
     user = get_user_by_id(user_id)
     if not user:
         raise ValueError(f"User {user_id} not found.")
+
+    if user.get("credits_remaining", 0) < 0 or str(user.get("tier", "")).lower() in UNLIMITED_TIERS:
+        return -1
+
     remaining = user["credits_remaining"]
     if remaining <= 0:
         raise ValueError("No credits remaining. Upgrade account for unlimited analyses.")
@@ -597,6 +621,5 @@ def save_redline_history(contract_id: str, clause_category: str, original_text: 
         )
         conn.commit()
     return {"id": redline_id, "contract_id": contract_id, "clause_category": clause_category, "position": position, "created_at": now}
-
 
 
