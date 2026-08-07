@@ -1,16 +1,21 @@
 import axios from 'axios';
 
+/**
+ * Resolves the API base URL:
+ * 1. VITE_API_BASE_URL env var (set in Vercel dashboard or .env.production)
+ * 2. Local dev fallback (localhost:8000)
+ */
 const getApiBaseUrl = (): string => {
+  // Explicit env var always wins (set this in Vercel Environment Variables)
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
+  // Local dev: frontend on localhost ports → backend on localhost:8000
   if (typeof window !== 'undefined' && window.location) {
-    const { hostname, protocol, port } = window.location;
-    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      if (port === '5173' || port === '3000' || port === '4173') {
-        return `${protocol}//${hostname}:8000/api`;
-      }
-      return '/api';
+    const { hostname, protocol } = window.location;
+    // If accessed from LAN IP (e.g. phone on same WiFi), target same host
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.includes('.')) {
+      return `${protocol}//${hostname}:8000/api`;
     }
   }
   return 'http://localhost:8000/api';

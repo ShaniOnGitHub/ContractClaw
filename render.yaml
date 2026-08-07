@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: contractclaw-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python generate_samples.py
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CONTRACTCLAW_CREATOR_EMAIL
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.6"
