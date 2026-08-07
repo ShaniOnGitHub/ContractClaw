@@ -1,4 +1,4 @@
-# Single-Stage Dockerfile for ContractClaw Streamlit Application
+# Dockerfile for Hugging Face Spaces / FastAPI Backend
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -21,11 +21,8 @@ COPY . .
 # Generate sample contracts on container build
 RUN python generate_samples.py
 
-# Expose Streamlit port
-EXPOSE 8501
+# Expose default Hugging Face Spaces port (7860)
+EXPOSE 7860
 
-# Healthcheck
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
-
-# Run Streamlit
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Run FastAPI server with Uvicorn on 0.0.0.0:7860
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7860"]
