@@ -1,3 +1,14 @@
+---
+title: ContractClaw API
+emoji: ⚖️
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 4.19.0
+app_file: app.py
+pinned: false
+---
+
 # 🦅 ContractClaw - AI Contract Analysis & LangChain Retriever Masterclass
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
