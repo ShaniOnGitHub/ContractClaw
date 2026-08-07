@@ -18,7 +18,6 @@ from config import DB_PATH, FREE_TIER_CREDITS
 from services.auth import hash_password
 
 CREATOR_EMAIL = os.getenv("CONTRACTCLAW_CREATOR_EMAIL", "admin@contractclaw.ai").lower().strip()
-UNLIMITED_TIERS = {"creator", "admin", "pro", "enterprise", "unlimited"}
 
 
 # ─── Schema ──────────────────────────────────────────────────────────────────
@@ -181,28 +180,25 @@ def seed_default_user(conn: sqlite3.Connection) -> None:
         conn.execute(
             """INSERT INTO users (id, email, password_hash, credits_remaining, tier, created_at)
                VALUES (?, ?, ?, ?, 'creator', ?)""",
-            ("default", CREATOR_EMAIL, pwd, -1, now),
+            ("default", CREATOR_EMAIL, pwd, FREE_TIER_CREDITS, now),
         )
     else:
         conn.execute(
-            "UPDATE users SET email = ?, password_hash = ?, credits_remaining = ?, tier = ? WHERE id = ? OR email = ?",
-            (CREATOR_EMAIL, pwd, -1, "creator", row["id"], CREATOR_EMAIL),
+            "UPDATE users SET email = ?, password_hash = ?, credits_remaining = CASE WHEN credits_remaining < 0 THEN ? ELSE credits_remaining END, tier = ? WHERE id = ? OR email = ?",
+            (CREATOR_EMAIL, pwd, FREE_TIER_CREDITS, "creator", row["id"], CREATOR_EMAIL),
         )
 
 
 def _normalize_user_record(user: Dict[str, Any]) -> Dict[str, Any]:
-    """Marks creator accounts as unlimited so the product owner is never credit-blocked."""
+    """Ensures user record fields are clean and credits_remaining is a valid integer."""
     if not user:
         return user
 
-    email = str(user.get("email", "")).lower().strip()
-    tier = str(user.get("tier", "")).lower().strip()
-    user_id = str(user.get("id", "")).strip()
-    is_creator = email == CREATOR_EMAIL or user_id == "default" or tier in UNLIMITED_TIERS
-
-    if is_creator:
-        user["tier"] = "creator"
-        user["credits_remaining"] = -1
+    rem = user.get("credits_remaining")
+    if rem is None or rem < 0:
+        user["credits_remaining"] = FREE_TIER_CREDITS
+    else:
+        user["credits_remaining"] = int(rem)
     return user
 
 
@@ -247,17 +243,15 @@ def delete_user_account(user_id: str) -> None:
 
 
 def deduct_credit(user_id: str) -> int:
-    """Deducts 1 credit for user_id; returns remaining credits."""
+    """Deducts 1 credit for user_id; returns remaining credits. Raises ValueError if 0 credits remaining."""
     user = get_user_by_id(user_id)
     if not user:
         raise ValueError(f"User {user_id} not found.")
 
-    if user.get("credits_remaining", 0) < 0 or str(user.get("tier", "")).lower() in UNLIMITED_TIERS:
-        return -1
-
-    remaining = user["credits_remaining"]
+    remaining = user.get("credits_remaining", 0)
     if remaining <= 0:
-        raise ValueError("No credits remaining. Upgrade account for unlimited analyses.")
+        raise ValueError("No credits remaining. Purchase additional credits to run risk analysis.")
+
     new_remaining = remaining - 1
     with _connect() as conn:
         conn.execute(

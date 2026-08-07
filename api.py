@@ -66,6 +66,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -406,18 +407,15 @@ def analyze_user_contract(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     user_id = current_user["id"]
-    user_email = str(current_user.get("email", "")).lower().strip()
-    user_tier = str(current_user.get("tier", "")).lower().strip()
-    is_unlimited_user = user_email == "admin@contractclaw.ai" or user_email == os.getenv("CONTRACTCLAW_CREATOR_EMAIL", "admin@contractclaw.ai").lower().strip() or user_tier in {"creator", "admin", "pro", "enterprise", "unlimited"}
     contract = get_contract(contract_id, user_id=user_id)
     if not contract:
         raise HTTPException(404, f"Contract {contract_id} not found.")
     if contract["status"] != "indexed":
         raise HTTPException(409, f"Contract status is '{contract['status']}'. Must be 'indexed' before analyzing.")
 
-    # Deduct credit for user
+    # Deduct credit for user — strictly enforced for all users
     try:
-        remaining = -1 if is_unlimited_user else deduct_credit(user_id)
+        remaining = deduct_credit(user_id)
     except ValueError as e:
         raise HTTPException(402, str(e))
 

@@ -1,6 +1,22 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const getApiBaseUrl = (): string => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const { hostname, protocol, port } = window.location;
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      if (port === '5173' || port === '3000' || port === '4173') {
+        return `${protocol}//${hostname}:8000/api`;
+      }
+      return '/api';
+    }
+  }
+  return 'http://localhost:8000/api';
+};
+
+const API_BASE = getApiBaseUrl();
 const V1 = `${API_BASE}/v1`;
 
 // Create axios instance with interceptors for Authorization

@@ -18,11 +18,8 @@ export const SettingsPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const isUnlimited = (user?.tier || '').toLowerCase() === 'creator'
-    || (user?.tier || '').toLowerCase() === 'admin'
-    || (user?.credits_remaining ?? 15) < 0;
-  const creditsLabel = isUnlimited ? 'Unlimited' : `${user?.credits_remaining ?? 15} / 15`;
-  const tierLabel = isUnlimited ? 'Creator Tier' : `${user?.tier || 'Free'} Tier`;
+  const creditsLabel = `${Math.max(0, user?.credits_remaining ?? 15)} / 15`;
+  const tierLabel = `${user?.tier ? user.tier.charAt(0).toUpperCase() + user.tier.slice(1) : 'Free'} Tier`;
 
   useEffect(() => {
     getMe().then(setUser).catch(console.error);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FileText, Settings, ChevronLeft, ChevronRight,
+  LayoutDashboard, FileText, Settings, ChevronLeft,
   UserCheck, ShieldCheck, LogOut, BookOpen, Columns3
 } from 'lucide-react';
 import { getCredits, getMe } from '../services/api';
@@ -51,13 +51,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
 
   const maxCredits = 15;
-  const isUnlimited = (user?.tier || '').toLowerCase() === 'creator'
-    || (user?.tier || '').toLowerCase() === 'admin'
-    || (user?.credits_remaining ?? credits ?? maxCredits) < 0;
-  const creditsDisplay = credits ?? user?.credits_remaining ?? maxCredits;
-  const pct = isUnlimited ? 100 : Math.max(0, Math.min(100, (creditsDisplay / maxCredits) * 100));
-  const creditsLabel = isUnlimited ? 'Unlimited' : `${creditsDisplay} / ${maxCredits}`;
-  const tierLabel = isUnlimited ? 'Creator Tier' : `${user?.tier || 'Free'} Tier`;
+  const creditsDisplay = Math.max(0, credits ?? user?.credits_remaining ?? maxCredits);
+  const pct = Math.max(0, Math.min(100, (creditsDisplay / maxCredits) * 100));
+  const creditsLabel = `${creditsDisplay} / ${maxCredits}`;
+  const tierLabel = `${user?.tier ? user.tier.charAt(0).toUpperCase() + user.tier.slice(1) : 'Free'} Tier`;
 
   const email = user?.email || 'User';
   const initial = email.charAt(0).toUpperCase();
@@ -73,32 +70,32 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>ContractClaw</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span className="status-dot" />
-                Live analysis suite
-              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>v1.0 Engine</div>
             </div>
           </div>
         )}
-        {collapsed && (
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck size={16} color="#fff" />
-          </div>
-        )}
-        <button onClick={() => setCollapsed(c => !c)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex' }}>
-          {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+        >
+          <ChevronLeft size={16} style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
         </button>
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {nav.map(({ to, label, icon: Icon }) => (
           <NavLink
-            key={to} to={to}
-            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+            key={to}
+            to={to}
+            className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+            style={{
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              padding: collapsed ? '10px' : '9px 12px',
+            }}
             title={collapsed ? label : undefined}
           >
-            <Icon size={16} style={{ flexShrink: 0 }} />
+            <Icon size={16} className="sidebar-icon" />
             {!collapsed && <span>{label}</span>}
           </NavLink>
         ))}
@@ -109,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         {!collapsed && (
           <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>
-              {isUnlimited ? 'Credits status' : 'Credits remaining'}
+              Credits remaining
             </div>
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 999, overflow: 'hidden', margin: '6px 0' }}>
               <div style={{
