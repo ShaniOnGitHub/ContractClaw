@@ -6,17 +6,16 @@ import axios from 'axios';
  * 2. Local dev fallback (localhost:8000)
  */
 const getApiBaseUrl = (): string => {
-  // Explicit env var always wins (set this in Vercel Environment Variables)
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  // Local dev: frontend on localhost ports → backend on localhost:8000
   if (typeof window !== 'undefined' && window.location) {
-    const { hostname, protocol } = window.location;
-    // If accessed from LAN IP (e.g. phone on same WiFi), target same host
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.includes('.')) {
-      return `${protocol}//${hostname}:8000/api`;
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8000/api';
     }
+    // On Vercel or production domain: /api routes directly to Python serverless backend
+    return '/api';
   }
   return 'http://localhost:8000/api';
 };
