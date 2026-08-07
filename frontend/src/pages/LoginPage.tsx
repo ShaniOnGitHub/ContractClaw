@@ -6,8 +6,8 @@ import { loginUser, signupUser } from '../services/api';
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [isSignup, setIsSignup] = useState(false);
-  const [email, setEmail] = useState('admin@contractclaw.ai');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -176,9 +176,6 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
-          Default Demo: <span style={{ color: '#cbd5e1' }}>admin@contractclaw.ai</span> / <span style={{ color: '#cbd5e1' }}>password123</span>
-        </div>
       </div>
     </div>
   );
