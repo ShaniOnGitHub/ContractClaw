@@ -10,13 +10,12 @@ except Exception:  # pragma: no cover - optional local dependency
 # Load environment variables
 load_dotenv()
 
-# Base Directories (supports Vercel serverless writable /tmp environment)
-IS_VERCEL = os.getenv("VERCEL") is not None
+# Base Directories
 BASE_DIR = Path(__file__).resolve().parent
 SAMPLE_CONTRACTS_DIR = BASE_DIR / "sample_contracts"
-CHROMA_DB_DIR = Path("/tmp/chroma_db") if IS_VERCEL else BASE_DIR / "chroma_db"
-UPLOADS_DIR = Path("/tmp/uploads") if IS_VERCEL else BASE_DIR / "uploads"
-DB_PATH = Path("/tmp/contractclaw.db") if IS_VERCEL else BASE_DIR / "contractclaw.db"
+CHROMA_DB_DIR = BASE_DIR / "chroma_db"
+UPLOADS_DIR = BASE_DIR / "uploads"
+DB_PATH = BASE_DIR / "contractclaw.db"
 
 # Ensure directories exist
 SAMPLE_CONTRACTS_DIR.mkdir(parents=True, exist_ok=True)

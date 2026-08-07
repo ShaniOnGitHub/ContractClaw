@@ -10,12 +10,10 @@ const getApiBaseUrl = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
   if (typeof window !== 'undefined' && window.location) {
-    const { hostname } = window.location;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000/api';
+    const { hostname, protocol } = window.location;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.includes('.')) {
+      return `${protocol}//${hostname}:8000/api`;
     }
-    // On Vercel or production domain: /api routes directly to Python serverless backend
-    return '/api';
   }
   return 'http://localhost:8000/api';
 };
