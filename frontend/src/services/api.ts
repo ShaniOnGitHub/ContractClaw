@@ -163,14 +163,42 @@ export interface UserCredits {
   tier: string;
 }
 
+import { supabase, isSupabaseConfigured } from './supabase';
+
 // ─── Auth API Calls ───────────────────────────────────────────────────────────
 
 export const signupUser = async (email: string, password: string): Promise<AuthResponse> => {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw new Error(error.message);
+    const token = data.session?.access_token || 'supabase_token';
+    const user: UserProfile = {
+      id: data.user?.id || 'supabase_user',
+      email: data.user?.email || email,
+      credits_remaining: 15,
+      tier: 'free',
+      created_at: data.user?.created_at || new Date().toISOString()
+    };
+    return { token, user };
+  }
   const res = await apiClient.post(`${V1}/auth/signup`, { email, password });
   return res.data;
 };
 
 export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    const token = data.session?.access_token || 'supabase_token';
+    const user: UserProfile = {
+      id: data.user?.id || 'supabase_user',
+      email: data.user?.email || email,
+      credits_remaining: 15,
+      tier: 'free',
+      created_at: data.user?.created_at || new Date().toISOString()
+    };
+    return { token, user };
+  }
   const res = await apiClient.post(`${V1}/auth/login`, { email, password });
   return res.data;
 };
