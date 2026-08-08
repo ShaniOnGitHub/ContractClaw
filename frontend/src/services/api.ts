@@ -45,6 +45,7 @@ export interface UserProfile {
 export interface AuthResponse {
   token: string;
   user: UserProfile;
+  sessionExists?: boolean;
 }
 
 export interface ContractMetadata {
@@ -170,16 +171,19 @@ import { supabase, isSupabaseConfigured } from './supabase';
 export const signupUser = async (email: string, password: string): Promise<AuthResponse> => {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) throw new Error(error.message);
-    const token = data.session?.access_token || 'supabase_token';
+    if (error) throw error;
+    if (!data.user) {
+      throw new Error('Account creation failed. No user record returned by authentication provider.');
+    }
+    const token = data.session?.access_token || '';
     const user: UserProfile = {
-      id: data.user?.id || 'supabase_user',
-      email: data.user?.email || email,
+      id: data.user.id,
+      email: data.user.email || email,
       credits_remaining: 15,
       tier: 'free',
-      created_at: data.user?.created_at || new Date().toISOString()
+      created_at: data.user.created_at || new Date().toISOString()
     };
-    return { token, user };
+    return { token, user, sessionExists: Boolean(data.session) };
   }
   const res = await apiClient.post(`${V1}/auth/signup`, { email, password });
   return res.data;
@@ -188,16 +192,19 @@ export const signupUser = async (email: string, password: string): Promise<AuthR
 export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    const token = data.session?.access_token || 'supabase_token';
+    if (error) throw error;
+    if (!data.session || !data.user) {
+      throw new Error('Invalid login session. Please check your credentials and try again.');
+    }
+    const token = data.session.access_token;
     const user: UserProfile = {
-      id: data.user?.id || 'supabase_user',
-      email: data.user?.email || email,
+      id: data.user.id,
+      email: data.user.email || email,
       credits_remaining: 15,
       tier: 'free',
-      created_at: data.user?.created_at || new Date().toISOString()
+      created_at: data.user.created_at || new Date().toISOString()
     };
-    return { token, user };
+    return { token, user, sessionExists: true };
   }
   const res = await apiClient.post(`${V1}/auth/login`, { email, password });
   return res.data;

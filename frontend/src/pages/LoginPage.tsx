@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail, ArrowRight, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, UserPlus, AlertCircle, CheckCircle, Clock, Info } from 'lucide-react';
 import { loginUser, signupUser } from '../services/api';
+import { mapSupabaseAuthError } from '../utils/authErrorMapper';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -11,9 +12,26 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [cooldownTimer, setCooldownTimer] = useState<number>(0);
+  const [isConfirmationPending, setIsConfirmationPending] = useState<boolean>(false);
+
+  // Live countdown timer for rate-limit cooldown
+  useEffect(() => {
+    let timer: any = null;
+    if (cooldownTimer > 0) {
+      timer = setInterval(() => {
+        setCooldownTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cooldownTimer]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cooldownTimer > 0) return;
+
     setError(null);
     setSuccess(null);
     setLoading(true);
@@ -21,20 +39,33 @@ export const LoginPage: React.FC = () => {
     try {
       if (isSignup) {
         const res = await signupUser(email, password);
-        localStorage.setItem('contractclaw_token', res.token);
-        localStorage.setItem('contractclaw_user', JSON.stringify(res.user));
-        setSuccess('Account created successfully! Redirecting...');
-        setTimeout(() => navigate('/dashboard'), 800);
+        if (res.sessionExists && res.token) {
+          localStorage.setItem('contractclaw_token', res.token);
+          localStorage.setItem('contractclaw_user', JSON.stringify(res.user));
+          setSuccess('Account created successfully! Redirecting...');
+          setTimeout(() => navigate('/dashboard'), 600);
+        } else {
+          // Email confirmation is required by Supabase project settings
+          setIsConfirmationPending(true);
+          setIsSignup(false); // Switch to Sign In mode
+          setSuccess(`Account created! A confirmation link has been sent to ${email}. Please check your inbox and verify your email to log in.`);
+          setPassword(''); // Reset password field but keep email prefilled!
+        }
       } else {
         const res = await loginUser(email, password);
-        localStorage.setItem('contractclaw_token', res.token);
-        localStorage.setItem('contractclaw_user', JSON.stringify(res.user));
-        setSuccess('Login successful! Redirecting...');
-        setTimeout(() => navigate('/dashboard'), 500);
+        if (res.token) {
+          localStorage.setItem('contractclaw_token', res.token);
+          localStorage.setItem('contractclaw_user', JSON.stringify(res.user));
+          setSuccess('Login successful! Redirecting...');
+          setTimeout(() => navigate('/dashboard'), 500);
+        }
       }
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'Authentication failed. Please try again.';
-      setError(msg);
+      const mapped = mapSupabaseAuthError(err);
+      setError(mapped.message);
+      if (mapped.isRateLimit && mapped.cooldownSeconds) {
+        setCooldownTimer(mapped.cooldownSeconds);
+      }
     } finally {
       setLoading(false);
     }
@@ -75,7 +106,7 @@ export const LoginPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => { setIsSignup(true); setError(null); }}
+            onClick={() => { setIsSignup(true); setError(null); setIsConfirmationPending(false); }}
             style={{
               flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 7, cursor: 'pointer',
               background: isSignup ? '#1e293b' : 'transparent',
@@ -90,16 +121,26 @@ export const LoginPage: React.FC = () => {
 
         {/* Feedback Alerts */}
         {error && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '10px 14px', borderRadius: 8, fontSize: 12 }}>
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '12px 14px', borderRadius: 10, fontSize: 12, lineHeight: '1.4' }}>
+            <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>Authentication Notice</div>
+              <div>{error}</div>
+            </div>
           </div>
         )}
 
         {success && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#86efac', padding: '10px 14px', borderRadius: 8, fontSize: 12 }}>
-            <CheckCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{success}</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', color: '#86efac', padding: '12px 14px', borderRadius: 10, fontSize: 12, lineHeight: '1.4' }}>
+            <CheckCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>{success}</div>
+          </div>
+        )}
+
+        {isConfirmationPending && !success && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.4)', color: '#93c5fd', padding: '10px 14px', borderRadius: 8, fontSize: 12 }}>
+            <Info size={16} style={{ flexShrink: 0 }} />
+            <span>Please confirm your email before signing in.</span>
           </div>
         )}
 
@@ -141,7 +182,7 @@ export const LoginPage: React.FC = () => {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="•••••••••"
                 required
-                minLength={6}
+                minLength={8}
                 style={{
                   width: '100%', background: '#0f172a', border: '1px solid #334155',
                   borderRadius: 9, padding: '10px 12px 10px 32px', fontSize: 13,
@@ -156,18 +197,20 @@ export const LoginPage: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || cooldownTimer > 0}
             style={{
-              marginTop: 8, width: '100%', background: 'var(--accent)', color: '#fff',
+              marginTop: 8, width: '100%', background: cooldownTimer > 0 ? '#475569' : 'var(--accent)', color: '#fff',
               border: 'none', borderRadius: 9, padding: '11px 0', fontSize: 13, fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              opacity: loading ? 0.7 : 1, transition: 'all .15s', boxShadow: '0 2px 8px rgba(13,148,136,.3)'
+              cursor: (loading || cooldownTimer > 0) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              opacity: (loading || cooldownTimer > 0) ? 0.7 : 1, transition: 'all .15s', boxShadow: '0 2px 8px rgba(13,148,136,.3)'
             }}
-            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--accent)'; }}
+            onMouseEnter={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.background = 'var(--accent-hover)'; }}
+            onMouseLeave={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.background = 'var(--accent)'; }}
           >
             {loading ? (
               <span>Processing...</span>
+            ) : cooldownTimer > 0 ? (
+              <>Rate Limited — Cooldown ({cooldownTimer}s) <Clock size={15} /></>
             ) : isSignup ? (
               <>Create Free Account <UserPlus size={15} /></>
             ) : (
@@ -175,7 +218,6 @@ export const LoginPage: React.FC = () => {
             )}
           </button>
         </form>
-
       </div>
     </div>
   );
