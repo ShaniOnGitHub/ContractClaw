@@ -365,14 +365,18 @@ class ClawEngine:
                 all_child_docs.append(child)
 
         # Step 3: Index child chunks into ChromaDB
-        self.vector_store.delete_collection()
+        try:
+            self.vector_store.delete_collection()
+        except Exception:
+            pass
+
+        self.vector_store = Chroma(
+            collection_name=self.collection_name,
+            embedding_function=self.embeddings,
+            persist_directory=self.persist_directory,
+        )
         if all_child_docs:
-            self.vector_store = Chroma.from_documents(
-                documents=all_child_docs,
-                embedding=self.embeddings,
-                collection_name=self.collection_name,
-                persist_directory=self.persist_directory,
-            )
+            self.vector_store.add_documents(all_child_docs)
 
         trace = {
             "engine": self.config["engine_name"],
