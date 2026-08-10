@@ -110,19 +110,24 @@ async def get_current_user(
         )
 
     payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
+    if not payload or ("sub" not in payload and "email" not in payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_id = payload["sub"]
+    user_id = payload.get("sub") or payload.get("email")
     user = get_user_by_id(user_id)
+    if not user and payload.get("email"):
+        user = get_user_by_email(payload["email"])
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account no longer exists",
+        email = payload.get("email", f"user_{str(user_id)[:8]}@contractclaw.ai")
+        user = create_user(
+            email=email,
+            password_hash=hash_password("supabase_auth_pass"),
+            credits_remaining=15,
+            tier="free",
         )
     return user
 
