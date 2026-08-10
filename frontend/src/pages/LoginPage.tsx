@@ -145,15 +145,18 @@ export const LoginPage: React.FC = () => {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form method="post" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 5 }}>Work Email</label>
+            <label htmlFor="user-email" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 5 }}>Work Email</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
                 <Mail size={14} />
               </span>
               <input
+                id="user-email"
+                name="username"
                 type="email"
+                autoComplete="username"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
@@ -171,13 +174,16 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 5 }}>Password</label>
+            <label htmlFor="user-password" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 5 }}>Password</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
                 <Lock size={14} />
               </span>
               <input
+                id="user-password"
+                name="password"
                 type="password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="•••••••••"
