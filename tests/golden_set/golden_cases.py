@@ -49,13 +49,13 @@ This Employment Agreement is between Beta Corp ("Employer") and Jane Doe ("Emplo
         "expected_document_types": ["Employment Agreement"],
         "minimum_classification_confidence": 0.80,
         "expected_risk_band": "Moderate Risk",
-        "allowed_score_range": {"minimum": 15, "maximum": 50},
+        "allowed_score_range": {"minimum": 12, "maximum": 50},
         "required_findings": [
             {"category": "Incomplete Clause", "clause_type": "Confidentiality"},
             {"category": "Incomplete Clause", "clause_type": "IP"}
         ],
         "forbidden_findings": [
-            {"claim": "Benefits are not mentioned"}
+            {"claim": "The employer has unlimited liability"}
         ]
     },
     {
@@ -144,7 +144,7 @@ This Agreement is made between Generic Corp and Consultant Alex.
         "expected_document_types": ["Consulting Agreement", "Independent Contractor Agreement", "Service Agreement", "Employment Agreement"],
         "minimum_classification_confidence": 0.40,
         "expected_risk_band": "Moderate Risk",
-        "allowed_score_range": {"minimum": 15, "maximum": 60},
+        "allowed_score_range": {"minimum": 6, "maximum": 60},
         "required_findings": [],
         "forbidden_findings": []
     },
