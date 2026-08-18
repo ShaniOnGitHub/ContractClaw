@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, Mail, ArrowRight, UserPlus, AlertCircle, CheckCircle, Clock, Info } from 'lucide-react';
 import { loginUser, signupUser } from '../services/api';
 import { mapSupabaseAuthError } from '../utils/authErrorMapper';
+import { mapHttpAuthError } from '../utils/authHttpErrorMapper';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -51,10 +52,17 @@ export const LoginPage: React.FC = () => {
         setTimeout(() => navigate('/dashboard'), 400);
       }
     } catch (err: any) {
-      const mapped = mapSupabaseAuthError(err);
+      // Backend (SQLite/JWT) errors → friendly HTTP mapper; Supabase errors → Supabase mapper.
+      const mapped = err?.response?.status || err?.response
+        ? mapHttpAuthError(err)
+        : mapSupabaseAuthError(err);
       setError(mapped.message);
       if (mapped.isRateLimit && mapped.cooldownSeconds) {
         setCooldownTimer(mapped.cooldownSeconds);
+      }
+      // If the account already exists, flip to the Sign In tab with the email prefilled.
+      if (mapped.suggestSignIn && isSignup) {
+        setIsSignup(false);
       }
     } finally {
       setLoading(false);
