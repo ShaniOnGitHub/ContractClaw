@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, APIRouter, Depends, BackgroundTasks, status
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
@@ -22,7 +23,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from config import (
-    SAMPLE_CONTRACTS_DIR, UPLOADS_DIR, DB_PATH,
+    BASE_DIR, SAMPLE_CONTRACTS_DIR, UPLOADS_DIR, DB_PATH,
     CHUNK_SIZE, CHUNK_OVERLAP, MAX_FILE_SIZE
 )
 from database import (
@@ -75,6 +76,7 @@ app.add_middleware(
 # Initialise DB schema and default seed user
 init_db()
 logger.info("SQLite database initialised with multi-user auth schema")
+
 
 # ─── Global Claw 1.0 Engine Manager ───────────────────────────────────────────
 
@@ -673,6 +675,8 @@ app.include_router(v1)
 
 
 
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # LEGACY ROUTES (Backward compat)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -686,3 +690,25 @@ def health():
 def get_samples():
     files = list(SAMPLE_CONTRACTS_DIR.glob("*.pdf"))
     return {"samples": [f.name for f in files]}
+
+# ─── Serve the built React frontend from the SAME origin ─────────────────────
+# One URL serves everything (frontend + /api/**). This is what makes a single
+# Railway/Render/fly.io deployment work on any device (desktop, mobile, any
+# network) without proxy rewrites. See HOSTING.md for deployment notes.
+
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    async def serve_frontend(request: Request):
+        """SPA fallback: serve index.html for any non-API path."""
+        return FileResponse(FRONTEND_DIST / "index.html",
+                            media_type="text/html")
+
+    # Static assets first (JS/CSS/images under /assets), then SPA fallback.
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="frontend_assets")
+    app.add_api_route("/{rest_of_path:path}", serve_frontend,
+                      include_in_schema=False)
+    logger.info(f"Frontend served from same origin: {FRONTEND_DIST}")
+else:
+    logger.warning("frontend/dist not found; API-only mode (frontend not embedded)")

@@ -7,7 +7,7 @@ import axios from 'axios';
  * 2. Same-origin relative path (/api) — works on EVERY device and network
  *    (desktop, mobile, deployed, previews) because the browser sends the
  *    request to the frontend's own host, which proxies it to the backend
- *    via the /api rewrite rules in vercel.json. Relative URLs never fail
+ *    to the backend itself (same host). Relative URLs never fail
  *    with "Network Error" due to localhost/port guessing.
  * 3. Local dev fallback (localhost:8000) — only when Vite's dev server
  *    is serving the app locally (detected via dev-server-only hostnames).

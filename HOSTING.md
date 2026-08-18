@@ -79,3 +79,22 @@ python main.py
 ```
 
 Do NOT use `uvicorn api:app --port $PORT` as a raw command, since single-quote/quoting issues in Railway's command field can pass the literal `$PORT` string to uvicorn.
+
+## Self-hosted single URL (Railway recommended setup)
+
+The backend embeds the built React frontend and serves it from the **same URL** as the API. One deployment, one URL, everything works — desktop, mobile, any network, no proxy rewrites and no separate frontend host required.
+
+How it works: `api.py` checks whether `frontend/dist` exists. If so, it mounts `/assets` (JS/CSS) as static files and adds a catch-all route that serves `index.html` for every non-API path (this is what makes React SPA routes like `/login` and `/dashboard` work). If the folder is missing, the server runs in API-only mode with a warning.
+
+Deployment steps for Railway (or Render/fly.io):
+
+1. Push this repo to GitHub.
+2. In Railway: **New Project → Deploy from GitHub → select this repo**. Railway reads `railway.json` automatically (start command `python main.py`, healthcheck `/api/health`).
+3. Set your secrets in Railway → Variables: `GROQ_API_KEY` or `OPENAI_API_KEY`, `JWT_SECRET`, `CONTRACTCLAW_CREATOR_EMAIL`.
+4. That's it. One domain (e.g. `https://yourapp.up.railway.app`) serves both the app UI and all `/api/v1/**` endpoints.
+
+Notes:
+
+- `railway.json` + `Procfile` + `main.py` are the only deployment files; `vercel.json` remains only for users who choose to host the frontend separately on Vercel.
+- The frontend build is committed under `frontend/dist`, so Railway builds do not need Node.js — the Python image is enough. If you change frontend code, run `cd frontend && npm run build` locally and commit the rebuilt `dist` before pushing.
+- Railway healthchecks poll `/api/health` (registered as a legacy route returning `{"status":"ok"}`), which continues to work with the embedded frontend.
