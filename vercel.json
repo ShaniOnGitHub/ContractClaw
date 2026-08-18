@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://contractclaw-api.onrender.com/api/$1"
+      "destination": "https://contractclaw-api-production.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",
