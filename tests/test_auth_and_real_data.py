@@ -21,6 +21,18 @@ def test_auth_flow_and_scoped_data():
     """Test signup, login, protected routes, upload, and dashboard metrics."""
     init_db()
 
+    # Idempotent start: a stale test user from a previous interrupted run
+    # would make signup return 400, so remove it before testing.
+    import sqlite3
+    _db_path = str(Path(__file__).resolve().parent.parent / "contractclaw.db")
+    try:
+        conn = sqlite3.connect(_db_path)
+        conn.execute("DELETE FROM users WHERE email='testuser@contractclaw.ai'")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
     # 1. Test Signup
     test_email = "testuser@contractclaw.ai"
     test_password = "password123"

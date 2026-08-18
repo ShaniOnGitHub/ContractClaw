@@ -22,7 +22,12 @@ def get_llm():
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     if openai_key and not openai_key.startswith("your_"):
         try:
-            return ChatOpenAI(model="gpt-4o-mini", openai_api_key=openai_key, temperature=0)
+            return ChatOpenAI(
+                model="gpt-4o-mini",
+                openai_api_key=openai_key,
+                openai_api_base="https://api.openai.com/v1",
+                temperature=0,
+            )
         except Exception:
             pass
 

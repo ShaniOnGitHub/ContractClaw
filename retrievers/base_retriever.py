@@ -8,18 +8,38 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from config import CHROMA_DB_DIR, OPENAI_API_KEY
 from utils.text_splitters import get_basic_text_splitter
 
+OPENAI_API_EMBEDDINGS_BASE = "https://api.openai.com/v1"
+
+
 def get_embedding_function():
     """
-    Returns OpenAI text-embedding-3-small if API key is configured,
+    Returns OpenAI text-embedding-3-small if an OpenAI API key is configured,
     otherwise falls back to HuggingFace all-MiniLM-L6-v2 for zero-config local runs.
+
+    IMPORTANT: OpenAI-compatible proxy environments (e.g. those that set
+    OPENAI_API_BASE / OPENAI_BASE_URL without an /embeddings endpoint)
+    previously caused indexing to silently fail with 404. To avoid that,
+    the OpenAI embedder is always created against the official OpenAI API
+    endpoint (https://api.openai.com/v1), and any failure at EMBED time
+    falls back to local HuggingFace embeddings so contracts always finish
+    indexing.
     """
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if api_key and not api_key.startswith("your_"):
         try:
-            return OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=api_key)
+            openai_embed = OpenAIEmbeddings(
+                model="text-embedding-3-small",
+                openai_api_key=api_key,
+                openai_api_base=OPENAI_API_EMBEDDINGS_BASE,
+            )
+            # Capability probe: verify the key actually works for embeddings
+            # (previously, invalid or proxy keys crashed background indexing
+            # with a 401/404 long after the embedder was selected).
+            openai_embed.embed_query("health-check")
+            return openai_embed
         except Exception:
             pass
-    
+
     # Fallback to local HuggingFace embeddings
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 

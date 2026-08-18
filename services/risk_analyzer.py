@@ -121,7 +121,9 @@ def _get_llm_client() -> Tuple[Any, str, str]:
     if openai_key and not openai_key.startswith("your_"):
         from openai import OpenAI
         logger.info("Using OpenAI API (gpt-4o-mini) for risk analysis")
-        return OpenAI(api_key=openai_key), "openai", "gpt-4o-mini"
+        # Pin the official endpoint to avoid inheriting proxy env vars that
+        # lack /chat/completions (404 failures) — same as llm_client.py.
+        return OpenAI(api_key=openai_key, base_url="https://api.openai.com/v1"), "openai", "gpt-4o-mini"
 
     raise ValueError(
         "No LLM API key configured. Please set GROQ_API_KEY in your .env file or go to Settings."

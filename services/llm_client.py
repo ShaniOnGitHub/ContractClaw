@@ -41,7 +41,10 @@ def get_deterministic_llm_client() -> Tuple[Any, str, str]:
     openai_key = os.getenv("OPENAI_API_KEY", "").strip()
     if openai_key and not openai_key.startswith("your_"):
         from openai import OpenAI
-        return OpenAI(api_key=openai_key), "openai", "gpt-4o-mini"
+        # Pin the official OpenAI endpoint so this client never inherits
+        # OPENAI_API_BASE / OPENAI_BASE_URL from proxy environments that
+        # lack the /chat/completions endpoint (which caused 404 failures).
+        return OpenAI(api_key=openai_key, base_url="https://api.openai.com/v1"), "openai", "gpt-4o-mini"
 
     raise ValueError("No LLM API key configured. Please set GROQ_API_KEY or OPENAI_API_KEY in .env.")
 
@@ -142,7 +145,7 @@ def call_deterministic_llm(
             try:
                 logger.info("Attempting fallback to OpenAI (gpt-4o-mini)...")
                 from openai import OpenAI
-                oai_client = OpenAI(api_key=openai_key)
+                oai_client = OpenAI(api_key=openai_key, base_url="https://api.openai.com/v1")
                 oai_kwargs = {
                     "model": "gpt-4o-mini",
                     "messages": kwargs["messages"],
