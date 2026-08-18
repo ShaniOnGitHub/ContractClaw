@@ -65,3 +65,17 @@ Then verify from a mobile browser: create a new account, upload a PDF, and confi
 | --- | --- | --- |
 | `GROQ_API_KEY` or `OPENAI_API_KEY` | Recommended | Full AI risk analysis and redlining. Without either, the app falls back to the deterministic rule engine automatically. |
 | `BACKEND_URL` (Vercel frontend) | Optional | Override the proxied backend URL if your host name differs from the one in `vercel.json`. |
+
+## Railway deployment notes (added after $PORT startup crash)
+
+If your Railway deploy log shows `Invalid value for '--port': '$PORT' is not a valid integer`, the platform ran the start command without expanding the `$PORT` shell variable.
+
+Fix: Railway now automatically uses `railway.json` in this repo, which starts the server with `python main.py` — a portable entry point that reads the `PORT` environment variable itself (falling back to 8000), so no shell expansion is ever needed. The `Procfile` provides the same `python main.py` start for any other platform that reads Procfiles.
+
+If you prefer to set the start command manually in Railway's Variables/Settings panel, use exactly:
+
+```
+python main.py
+```
+
+Do NOT use `uvicorn api:app --port $PORT` as a raw command, since single-quote/quoting issues in Railway's command field can pass the literal `$PORT` string to uvicorn.
