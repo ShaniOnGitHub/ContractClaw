@@ -1,0 +1,18 @@
+# Keep local and generated runtime artifacts out of Railway source snapshots.
+.git/
+.github/
+.env
+.env.*
+**/__pycache__/
+*.py[cod]
+frontend/node_modules/
+frontend/.vite/
+chroma_db/
+chroma_data/
+uploads/
+scripts/
+frontend/src/components/Header.tsx
+frontend/src/components/Sidebar.tsx
+
+# The frontend dist is intentionally retained because the FastAPI service
+# serves it directly, and the Railway build also regenerates it.
