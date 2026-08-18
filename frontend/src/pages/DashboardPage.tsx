@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, AlertTriangle, Clock, BarChart2, UploadCloud, ShieldCheck, RefreshCw, ArrowRight } from 'lucide-react';
+import { FileText, AlertTriangle, Clock, BarChart2, UploadCloud, ShieldCheck, RefreshCw, ArrowRight, Columns3, BookOpen } from 'lucide-react';
 import { getDashboardMetrics, listContracts, getDeadlines } from '../services/api';
 import type { DashboardMetrics, Contract, ContractDeadline } from '../services/api';
 
@@ -60,21 +60,57 @@ export const DashboardPage: React.FC = () => {
     ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
     : 'Waiting for live data';
 
+  const actions = [
+    {
+      icon: UploadCloud,
+      label: 'Upload Contract',
+      hint: 'Run an AI risk breakdown',
+      iconBg: 'rgba(249, 117, 22, 0.14)',
+      iconColor: 'var(--accent)',
+      onClick: () => navigate('/upload'),
+    },
+    {
+      icon: FileText,
+      label: 'View Library',
+      hint: 'Browse analyzed contracts',
+      iconBg: 'rgba(52, 211, 153, 0.12)',
+      iconColor: 'var(--risk-low-text)',
+      onClick: () => navigate('/contracts'),
+    },
+    {
+      icon: Columns3,
+      label: 'Compare',
+      hint: 'Compare two contracts',
+      iconBg: 'rgba(96, 165, 250, 0.12)',
+      iconColor: '#93c5fd',
+      onClick: () => navigate('/compare'),
+    },
+    {
+      icon: BookOpen,
+      label: 'Playbooks',
+      hint: 'Manage review rules',
+      iconBg: 'rgba(251, 191, 36, 0.12)',
+      iconColor: 'var(--risk-med-text)',
+      onClick: () => navigate('/playbooks'),
+    },
+  ];
+
   return (
-    <div style={{ padding: '28px 32px', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 22 }}>
-      <div className="hero-panel" style={{ padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 760 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', padding: '4px 10px', borderRadius: 999, background: 'rgba(37, 99, 235, 0.10)', color: 'var(--accent)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {/* Centered hero with the warm gradient reserved for this panel */}
+      <div className="hero-panel" style={{ padding: '32px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', textAlign: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', borderRadius: 999, background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>
             <span className="status-dot" style={{ width: 8, height: 8, boxShadow: 'none', animation: 'none' }} />
             Live workspace
           </div>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>Dashboard Overview</h1>
-            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 6, maxWidth: 700 }}>
-              Track contract volume, live indexing progress, and upcoming deadlines from one central review command center.
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)', lineHeight: 1.15 }}>
+            What contract are we reviewing today?
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4, maxWidth: 560 }}>
+            Track contract volume, live indexing progress, and upcoming deadlines from one central review command center.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 999, background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
               <RefreshCw size={12} /> {refreshedLabel}
             </span>
@@ -86,18 +122,34 @@ export const DashboardPage: React.FC = () => {
             </button>
           </div>
         </div>
-        <div style={{ minWidth: 220, display: 'grid', gap: 10 }}>
-          <div className="card" style={{ padding: 16, borderRadius: 18 }}>
+        <div style={{ minWidth: 220 }}>
+          <div className="glass-card" style={{ padding: 18, borderRadius: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Live Signals</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
               <div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics?.total_contracts ?? 0}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{metrics?.total_contracts ?? 0}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Contracts monitored</div>
               </div>
-              <ShieldCheck size={28} color="var(--accent)" />
+              <ShieldCheck size={30} color="var(--accent)" />
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Action cards — the former sidebar nav items, one click away */}
+      <div className="action-cards">
+        {actions.map(a => (
+          <button key={a.label} className="action-card" onClick={a.onClick}>
+            <div className="action-card-icon" style={{ background: a.iconBg }}>
+              <a.icon size={18} color={a.iconColor} />
+            </div>
+            <div>
+              <div className="action-card-label">{a.label}</div>
+              <div className="action-card-hint">{a.hint}</div>
+            </div>
+            <ArrowRight size={14} className="action-card-arrow" />
+          </button>
+        ))}
       </div>
 
       {/* Loading State */}

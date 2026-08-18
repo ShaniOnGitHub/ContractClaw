@@ -2,8 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
+import { TopNav } from './components/TopNav';
 
 import { DashboardPage }      from './pages/DashboardPage';
 import { ContractsListPage }  from './pages/ContractsListPage';
@@ -24,9 +23,8 @@ const ProtectedLayout: React.FC = () => {
 
   return (
     <div className="app-shell">
-      <Sidebar userRole="admin" />
-      <div className="main-viewport">
-        <Header />
+      <TopNav />
+      <div className="main-content">
         <ErrorBoundary>
           <Routes>
             <Route path="/"                      element={<Navigate to="/dashboard" replace />} />

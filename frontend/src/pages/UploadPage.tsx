@@ -107,32 +107,28 @@ export const UploadPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Dropzone */}
+      {/* Upload trigger — wide chat-input style bar */}
       <div
+        className={`upload-trigger-bar ${dragOver ? 'dragging' : ''}`}
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: 14, padding: '48px 32px', textAlign: 'center',
-          cursor: 'pointer', background: dragOver ? 'var(--accent-bg)' : 'var(--bg-surface)',
-          transition: 'all .15s',
-        }}
+        role="button"
+        aria-label="Upload PDF contracts"
       >
-        <div style={{ width: 56, height: 56, borderRadius: 12, background: 'var(--accent-bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-          <UploadCloud size={26} color="var(--accent)" />
+        <div className="upload-trigger-icon">
+          <UploadCloud size={20} />
         </div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Click to upload or drag &amp; drop PDFs here
+        <div className="upload-trigger-placeholder">
+          <div className="upload-trigger-title">
+            {dragOver ? 'Drop to upload…' : 'Drop or click to upload PDFs'}
+          </div>
+          <div className="upload-trigger-sub">
+            Text is auto-extracted, type auto-detected (NDA, Employment, SOW…)
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-          Text is auto-extracted, type auto-detected (NDA, Employment, SOW…)
-        </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, padding: '4px 14px', fontSize: 12 }}>
-          <span style={{ color: 'var(--text-secondary)' }}>Format:</span>
-          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent)' }}>PDF · Max 25 MB</span>
-        </div>
+        <div className="upload-trigger-hint">PDF · Max 25 MB</div>
         <input type="file" ref={fileInputRef} onChange={e => e.target.files && handleFiles(e.target.files)} accept=".pdf" multiple style={{ display: 'none' }} />
       </div>
 

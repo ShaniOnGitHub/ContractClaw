@@ -62,32 +62,28 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{
-        background: '#1e293b', border: '1px solid #334155', borderRadius: 16, padding: 36,
-        maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.4)',
-        display: 'flex', flexDirection: 'column', gap: 24
-      }}>
+    <div className="login-page">
+      <div className="login-card">
         {/* Brand Header */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(13,148,136,.4)' }}>
+          <div className="login-brand-mark">
             <ShieldCheck size={24} color="#fff" />
           </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#f8fafc' }}>ContractClaw</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Enterprise Legal AI Risk Analysis</div>
+          <div style={{ marginTop: 4 }}>
+            <div className="login-brand-name">ContractClaw</div>
+            <div className="login-brand-sub">Enterprise Legal AI Risk Analysis</div>
           </div>
         </div>
 
         {/* Mode Selector (Login vs Signup) */}
-        <div style={{ display: 'flex', background: '#0f172a', padding: 4, borderRadius: 10, border: '1px solid #334155' }}>
+        <div className="login-mode-toggle">
           <button
             type="button"
             onClick={() => { setIsSignup(false); setError(null); }}
             style={{
               flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 7, cursor: 'pointer',
-              background: !isSignup ? '#1e293b' : 'transparent',
-              color: !isSignup ? '#f8fafc' : '#94a3b8',
+              background: !isSignup ? 'var(--accent)' : 'transparent',
+              color: !isSignup ? '#fff' : 'var(--text-secondary)',
               boxShadow: !isSignup ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
               transition: 'all 0.15s ease'
             }}
@@ -99,8 +95,8 @@ export const LoginPage: React.FC = () => {
             onClick={() => { setIsSignup(true); setError(null); setIsConfirmationPending(false); }}
             style={{
               flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 7, cursor: 'pointer',
-              background: isSignup ? '#1e293b' : 'transparent',
-              color: isSignup ? '#f8fafc' : '#94a3b8',
+              background: isSignup ? 'var(--accent)' : 'transparent',
+              color: isSignup ? '#fff' : 'var(--text-secondary)',
               boxShadow: isSignup ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
               transition: 'all 0.15s ease'
             }}
@@ -152,13 +148,13 @@ export const LoginPage: React.FC = () => {
                 placeholder="you@company.com"
                 required
                 style={{
-                  width: '100%', background: '#0f172a', border: '1px solid #334155',
+                  width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
                   borderRadius: 9, padding: '10px 12px 10px 32px', fontSize: 13,
-                  color: '#f8fafc', outline: 'none', boxSizing: 'border-box',
+                  color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box',
                   fontFamily: 'inherit', transition: 'border-color .15s'
                 }}
                 onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={e => (e.target.style.borderColor = '#334155')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
               />
             </div>
           </div>
@@ -180,13 +176,13 @@ export const LoginPage: React.FC = () => {
                 required
                 minLength={8}
                 style={{
-                  width: '100%', background: '#0f172a', border: '1px solid #334155',
+                  width: '100%', background: 'var(--bg-subtle)', border: '1px solid var(--border)',
                   borderRadius: 9, padding: '10px 12px 10px 32px', fontSize: 13,
-                  color: '#f8fafc', outline: 'none', boxSizing: 'border-box',
+                  color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box',
                   fontFamily: 'inherit', transition: 'border-color .15s'
                 }}
                 onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={e => (e.target.style.borderColor = '#334155')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
               />
             </div>
           </div>
@@ -195,13 +191,13 @@ export const LoginPage: React.FC = () => {
             type="submit"
             disabled={loading || cooldownTimer > 0}
             style={{
-              marginTop: 8, width: '100%', background: cooldownTimer > 0 ? '#475569' : 'var(--accent)', color: '#fff',
+              marginTop: 8, width: '100%', background: cooldownTimer > 0 ? 'var(--bg-subtle)' : 'linear-gradient(90deg, var(--accent) 0%, var(--accent-deep) 100%)', color: '#fff',
               border: 'none', borderRadius: 9, padding: '11px 0', fontSize: 13, fontWeight: 700,
               cursor: (loading || cooldownTimer > 0) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              opacity: (loading || cooldownTimer > 0) ? 0.7 : 1, transition: 'all .15s', boxShadow: '0 2px 8px rgba(13,148,136,.3)'
+              opacity: (loading || cooldownTimer > 0) ? 0.7 : 1, transition: 'all .15s', boxShadow: '0 2px 8px rgba(249,115,22,.35)'
             }}
-            onMouseEnter={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.background = 'var(--accent-hover)'; }}
-            onMouseLeave={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.background = 'var(--accent)'; }}
+            onMouseEnter={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.filter = 'brightness(1.15)'; }}
+            onMouseLeave={e => { if (!loading && cooldownTimer === 0) e.currentTarget.style.filter = 'brightness(1)'; }}
           >
             {loading ? (
               <span>Processing...</span>
