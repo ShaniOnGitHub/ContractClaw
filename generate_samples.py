@@ -8,7 +8,7 @@ SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
 class PDFContract(FPDF):
     def header(self):
         self.set_font('Helvetica', 'B', 14)
-        self.cell(0, 10, 'CONTRACTCLAW SAMPLE LEGAL DOCUMENT', border=False, new_x="LMARGIN", new_y="NEXT", align='C')
+        self.cell(0, 10, 'CONTRACTCLAW SAMPLE LEGAL DOCUMENT', border=0, ln=1, align='C')
         self.ln(5)
 
     def footer(self):
@@ -20,12 +20,12 @@ def create_pdf(filename: str, title: str, content: list):
     pdf = PDFContract()
     pdf.add_page()
     pdf.set_font('Helvetica', 'B', 16)
-    pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT", align='L')
+    pdf.cell(0, 10, title, ln=1, align='L')
     pdf.ln(5)
 
     for section_title, section_text in content:
         pdf.set_font('Helvetica', 'B', 12)
-        pdf.cell(0, 8, section_title, new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, section_title, ln=1)
         pdf.set_font('Helvetica', '', 10)
         pdf.multi_cell(0, 6, section_text)
         pdf.ln(4)
