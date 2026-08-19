@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Settings, UserCheck,
-  ShieldCheck, LogOut, BookOpen, Columns3, Sun, Moon, Bell
+  ShieldCheck, LogOut, BookOpen, Columns3, Bell
 } from 'lucide-react';
 import { getCredits, getMe } from '../services/api';
 import type { UserProfile } from '../services/api';

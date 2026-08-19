@@ -61,7 +61,7 @@ export const LoginPage: React.FC = () => {
         setCooldownTimer(mapped.cooldownSeconds);
       }
       // If the account already exists, flip to the Sign In tab with the email prefilled.
-      if (mapped.suggestSignIn && isSignup) {
+      if ('suggestSignIn' in mapped && mapped.suggestSignIn && isSignup) {
         setIsSignup(false);
       }
     } finally {

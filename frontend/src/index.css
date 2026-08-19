@@ -1113,3 +1113,63 @@ a {
   padding: 4px 12px;
   letter-spacing: .03em;
 }
+
+/* Analysis results: keep the score and next step readable on small screens. */
+@media (max-width: 768px) {
+  .analysis-subheader {
+    align-items: stretch !important;
+    flex-wrap: wrap;
+    padding: 10px 14px !important;
+  }
+
+  .analysis-subheader > div:first-child {
+    flex-basis: 100%;
+  }
+
+  .analysis-subheader select {
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 1;
+  }
+
+  .analysis-subheader .btn-primary {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .analysis-dual-pane {
+    display: flex !important;
+    flex-direction: column;
+    overflow-y: auto !important;
+  }
+
+  .analysis-text-pane,
+  .analysis-results-pane {
+    height: auto !important;
+    min-height: 0;
+    overflow: visible !important;
+  }
+
+  .analysis-text-pane {
+    flex: 0 0 auto;
+    max-height: 230px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .analysis-results-pane {
+    flex: 1 0 auto;
+  }
+
+  .analysis-engine-description {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .analysis-text-pane,
+  .analysis-results-pane {
+    padding: 14px !important;
+  }
+}
