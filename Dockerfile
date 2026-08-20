@@ -1,4 +1,4 @@
-# Dockerfile for Hugging Face Spaces / FastAPI Backend
+# Optional container image for the ContractClaw FastAPI service
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -21,8 +21,8 @@ COPY . .
 # Generate sample contracts on container build
 RUN python generate_samples.py
 
-# Expose default Hugging Face Spaces port (7860)
+# Default container port; Railway supplies its own PORT at runtime
 EXPOSE 7860
 
-# Run FastAPI server with Uvicorn on 0.0.0.0:7860
+# Run the FastAPI service on the container port
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -8,9 +8,9 @@ Why this file exists:
   then crashes with:
       Error: Invalid value for '--port': '$PORT' is not a valid integer.
 
-  This entry point reads PORT itself (Railway, Render, fly.io, Docker, local)
-  and always supplies a valid integer to uvicorn, so the server starts on
-  every platform without shell variable-expansion hacks.
+  This entry point reads PORT itself and always supplies a valid integer to
+  uvicorn, so the service starts reliably without shell variable-expansion
+  hacks.
 
 Usage:
   python main.py            # uses $PORT if set, else 8000

@@ -2,12 +2,10 @@ import axios from 'axios';
 
 /**
  * Resolves the API base URL (mobile & desktop friendly):
- * 1. VITE_API_BASE_URL env var (set in Vercel dashboard or .env.production)
- *    Example: https://your-render-backend.onrender.com/api
+ * 1. VITE_API_BASE_URL env var for local overrides or private environments.
  * 2. Same-origin relative path (/api) — works on EVERY device and network
  *    (desktop, mobile, deployed, previews) because the browser sends the
- *    request to the frontend's own host, which proxies it to the backend
- *    to the backend itself (same host). Relative URLs never fail
+ *    request to the same host as the frontend. Relative URLs never fail
  *    with "Network Error" due to localhost/port guessing.
  * 3. Local dev fallback (localhost:8000) — only when Vite's dev server
  *    is serving the app locally (detected via dev-server-only hostnames).
@@ -20,10 +18,8 @@ const getApiBaseUrl = (): string => {
     const hostname = window.location.hostname;
     // Only guess a :8000 target during LOCAL development (localhost or
     // plain LAN hostnames without a dot, e.g. a phone previewing the
-    // desktop's dev server over the same LAN). Deployed hosts (vercel.app,
-    // custom domains, render.com, etc.) ALWAYS use the same-origin
-    // relative path, which the vercel.json rewrite then proxies to the
-    // real backend. Never guess a port on production — that is what
+    // desktop's dev server over the same LAN). Deployed hosts ALWAYS use the
+    // same-origin relative path. Never guess a port on production — that is what
     // caused "Network Error" on mobile and 405 on production.
     const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1' || !hostname.includes('.');
     if (isLocalDev) {

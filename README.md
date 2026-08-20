@@ -1,62 +1,41 @@
 # ContractClaw
 
 [![CI](https://github.com/ShaniOnGitHub/ContractClaw/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaniOnGitHub/ContractClaw/actions/workflows/ci.yml)
-[![Railway](https://img.shields.io/badge/deployed%20on-Railway-7B61FF?logo=railway&logoColor=white)](https://contractclaw.up.railway.app)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111111)](https://react.dev/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Live app](https://img.shields.io/badge/try%20the%20live%20app-contractclaw.up.railway.app-111827?logo=railway&logoColor=white)](https://contractclaw.up.railway.app)
+[![License](https://img.shields.io/badge/license-MIT-16a34a.svg)](LICENSE)
 
-**ContractClaw** is a plain-English AI contract review workspace. Upload a legal PDF, receive a simple risk score, understand the important findings, and see what deserves attention before signing.
+## Review contracts without the legal fog
 
-[Open ContractClaw](https://contractclaw.up.railway.app) · [Report an issue](https://github.com/ShaniOnGitHub/ContractClaw/issues)
+**ContractClaw** turns a dense contract PDF into a clear first-pass review. Upload a document, get an easy-to-read risk score, understand the clauses that deserve attention, and see what to consider doing next.
 
-## Product overview
+[**Open the live app →**](https://contractclaw.up.railway.app) · [Report a problem](https://github.com/ShaniOnGitHub/ContractClaw/issues)
 
-ContractClaw is designed for people who need a useful first review without having to decode a dense legal or technical report. The analysis experience puts the overall score first, explains findings in everyday language, and gives each issue a direct next step.
+> ContractClaw is an analysis aid, not a substitute for advice from a qualified lawyer.
 
-The application includes:
+## What you can do
 
-| Area | What it does |
+| Need | ContractClaw helps you |
 |---|---|
-| Contract upload | Accepts PDF contracts and extracts the document text and metadata. |
-| Risk review | Produces a score and highlights clauses that may deserve attention. |
-| Plain-English findings | Explains what an issue means and what to consider doing next. |
-| Contract library | Keeps analyzed contracts available for later review. |
-| Compare | Lets users compare retrieval approaches on the same contract question. |
-| Playbooks | Provides reusable review guidance for common contract concerns. |
-| Notes and redlines | Preserves existing review workflows for private notes, flags, and proposed redlines. |
+| Get oriented quickly | See one overall score and a short summary before reading the details. |
+| Understand the important issues | Read plain-English explanations instead of dense technical output. |
+| Know what deserves attention | See a direct next step for each flagged clause. |
+| Keep your reviews together | Upload contracts and return to them in your private library. |
+| Ask better questions | Compare relevant passages and investigate a contract with retrieval tools. |
+| Prepare for a conversation | Add private notes, flag concerns, and create proposed redlines. |
 
-> **Important:** ContractClaw is an analysis aid, not a replacement for advice from a qualified lawyer.
+## A simpler review flow
 
-## How it works
-
-```mermaid
-graph LR
-    A[Upload PDF] --> B[Extract text and metadata]
-    B --> C[Chunk and index clauses]
-    C --> D[Retrieve relevant passages]
-    D --> E[Score contract risks]
-    E --> F[Plain-English review]
-    F --> G[Notes, flags, and redlines]
+```text
+Upload a PDF  →  Get a score  →  Understand the key findings  →  Decide what to review next
 ```
 
-The backend uses FastAPI and a retrieval pipeline built around ChromaDB and LangChain-compatible retrievers. The React frontend is built with Vite and is served by the same FastAPI process in production, so the deployed application has one public URL for both the interface and API.
+The result is designed for scanning. The score and recommendation come first; deeper explanations, source passages, notes, and redlines are available when you need them.
 
-## Technology
+## Built for useful answers
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 19, Vite, TypeScript, Tailwind CSS, Lucide icons |
-| Backend | Python 3.11+, FastAPI, Uvicorn |
-| Retrieval | ChromaDB, LangChain retrievers, similarity and MMR modes |
-| Document processing | `pdfplumber`, `pypdf`, and generated sample contracts |
-| AI integrations | OpenAI-compatible analysis with local embedding fallback |
-| Deployment | Railway single-service deployment; frontend bundle embedded in the repository |
-| License | MIT |
+ContractClaw combines a responsive web interface with a FastAPI service, document extraction, clause retrieval, and risk analysis. It uses a React frontend, Python services, and a retrieval layer backed by ChromaDB. The application is deployed as one Railway service, so the interface and API work from the same public URL.
 
-## Run locally
-
-### 1. Clone and create an environment
+## Run it locally
 
 ```bash
 git clone https://github.com/ShaniOnGitHub/ContractClaw.git
@@ -64,67 +43,57 @@ cd ContractClaw
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
-```
-
-### 2. Configure environment variables
-
-Copy `.env.example` to `.env` and provide the keys needed for your environment. The application can use local Hugging Face embeddings when an OpenAI embedding configuration is unavailable.
-
-```bash
 cp .env.example .env
 ```
 
-### 3. Build the frontend
+Build the interface and start the application:
 
 ```bash
 cd frontend
 npm install
 npm run build
 cd ..
-```
-
-### 4. Start the combined application
-
-```bash
 python main.py
 ```
 
-Open `http://localhost:8000` in a browser.
+Then open [http://localhost:8000](http://localhost:8000).
 
-## Tests
+## Check the project
 
-The focused CI checks generate sample contracts and run the ingestion, similarity retriever, and MMR retriever tests on Python 3.11:
+Generate the sample contracts and run the focused retrieval checks:
 
 ```bash
 python generate_samples.py
 pytest -q tests/test_ingestion.py tests/test_similarity_retriever.py tests/test_mmr_retriever.py
 ```
 
-The repository also contains the broader regression suite under `tests/`. To run it locally:
+The complete regression suite is also available:
 
 ```bash
 pytest -q
 ```
 
-## Deployment
-
-Railway deploys the `main` branch using the repository’s `railway.json` configuration. The service builds the React frontend and starts FastAPI through `main.py`. The production URL is [contractclaw.up.railway.app](https://contractclaw.up.railway.app).
-
-For deployment configuration details, see [`HOSTING.md`](HOSTING.md). For contribution or issue reports, use the repository’s [Issues page](https://github.com/ShaniOnGitHub/ContractClaw/issues).
-
-## Repository layout
+## Project map
 
 ```text
-frontend/       React application and production bundle
-services/       Authentication, analysis, and application services
-retrievers/     Retrieval strategies used by contract analysis
-tests/          Regression and feature tests
-api.py          FastAPI routes and frontend serving
-main.py         Portable production entry point
-generate_samples.py  Local and CI sample-contract generator
-railway.json    Railway build and deployment configuration
+frontend/            User-facing React application
+api.py               Application routes and frontend serving
+services/            Authentication, analysis, redlines, and review services
+retrievers/          Clause and document retrieval strategies
+tests/               Regression and feature checks
+main.py              Production entry point
+generate_samples.py  Sample-contract generator for local checks and CI
+railway.json         Railway build and health-check configuration
 ```
 
 ## License
 
-ContractClaw is distributed under the MIT License. See [`LICENSE`](LICENSE).
+ContractClaw is available under the [MIT License](LICENSE).
+
+## Disclaimer
+
+ContractClaw does not provide legal advice. Always have a qualified legal professional review important agreements before signing or relying on an automated analysis.
+
+---
+
+Made for clearer contract conversations.

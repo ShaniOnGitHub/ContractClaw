@@ -692,9 +692,8 @@ def get_samples():
     return {"samples": [f.name for f in files]}
 
 # ─── Serve the built React frontend from the SAME origin ─────────────────────
-# One URL serves everything (frontend + /api/**). This is what makes a single
-# Railway/Render/fly.io deployment work on any device (desktop, mobile, any
-# network) without proxy rewrites. See HOSTING.md for deployment notes.
+# One URL serves everything (frontend + /api/**). The single Railway service
+# works on any device (desktop, mobile, any network) without proxy rewrites.
 
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 if FRONTEND_DIST.is_dir():
