@@ -1,146 +1,130 @@
----
-title: ContractClaw API
-emoji: ⚖️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
+# ContractClaw
 
-# 🦅 ContractClaw - AI Contract Analysis & LangChain Retriever Masterclass
+[![CI](https://github.com/ShaniOnGitHub/ContractClaw/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaniOnGitHub/ContractClaw/actions/workflows/ci.yml)
+[![Railway](https://img.shields.io/badge/deployed%20on-Railway-7B61FF?logo=railway&logoColor=white)](https://contractclaw.up.railway.app)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111111)](https://react.dev/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Streamlit](https://img.shields.io/badge/streamlit-1.30+-ff4b4b.svg)](https://streamlit.io/)
-[![LangChain](https://img.shields.io/badge/langchain-0.1+-0066ff.svg)](https://www.langchain.com/)
-[![ChromaDB](https://img.shields.io/badge/chromadb-0.4+-green.svg)](https://www.trychroma.com/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**ContractClaw** is a plain-English AI contract review workspace. Upload a legal PDF, receive a simple risk score, understand the important findings, and see what deserves attention before signing.
 
-**ContractClaw** is a production-grade contract review application and interactive laboratory designed to teach and demonstrate 5 advanced **LangChain retrieval strategies** on legal PDF documents.
+[Open ContractClaw](https://contractclaw.up.railway.app) · [Report an issue](https://github.com/ShaniOnGitHub/ContractClaw/issues)
 
----
+## Product overview
 
-## 🎯 Key Features & Retriever Laboratories
+ContractClaw is designed for people who need a useful first review without having to decode a dense legal or technical report. The analysis experience puts the overall score first, explains findings in everyday language, and gives each issue a direct next step.
 
-1. **📄 PDF Ingestion & Automated Metadata Parsing:** Extracts full contract text alongside structured metadata (`contract_type`, `upload_date`, `filename`, `parties`) using custom regex heuristics and `pdfplumber`.
-2. **🔵 Cosine Similarity Search Retriever:** Baseline vector search that calculates angular distance between query embeddings and chunk embeddings.
-3. **🟢 Maximal Marginal Relevance (MMR) Retriever:** Eliminates result redundancy to surface diverse contractual risks (payment terms, IP rights, liability caps) using a tuneable $\lambda$ factor.
-4. **🧠 Multi-Query Retriever:** Uses LLMs to translate vague user prompts into 3–5 specialized legal queries, casting a wider retrieval net.
-5. **🏷️ Self-Query Retriever:** Extracts structured metadata filters directly from natural language (e.g., `"Find NDAs uploaded last month"` $\rightarrow$ `contract_type == "NDA"`).
-6. **🧩 Parent Document Retriever:** Implements small-to-big retrieval by embedding small child chunks (400 chars) for high vector accuracy while returning full parent chunks (2000 chars) for complete context.
-7. **🔬 Compare Modes Laboratory:** Enables side-by-side benchmarking of any 2 retriever strategies on the exact same user query.
+The application includes:
 
----
+| Area | What it does |
+|---|---|
+| Contract upload | Accepts PDF contracts and extracts the document text and metadata. |
+| Risk review | Produces a score and highlights clauses that may deserve attention. |
+| Plain-English findings | Explains what an issue means and what to consider doing next. |
+| Contract library | Keeps analyzed contracts available for later review. |
+| Compare | Lets users compare retrieval approaches on the same contract question. |
+| Playbooks | Provides reusable review guidance for common contract concerns. |
+| Notes and redlines | Preserves existing review workflows for private notes, flags, and proposed redlines. |
 
-## 🏗️ Architecture & Workflow Diagram
+> **Important:** ContractClaw is an analysis aid, not a replacement for advice from a qualified lawyer.
+
+## How it works
 
 ```mermaid
-graph TD
-    A[Upload Contract PDF] --> B[utils/pdf_parser.py]
-    B --> C[Extract Text & Metadata]
-    C --> D[ChromaDB Vector Store]
-    
-    subgraph "5 LangChain Retriever Modes"
-        E[1. Similarity Search]
-        F[2. MMR Diversity Mode]
-        G[3. Multi-Query Expansion]
-        H[4. Self-Query Metadata Filter]
-        I[5. Parent Document Retriever]
-    end
-    
-    D --> E
-    D --> F
-    D --> G
-    D --> H
-    D --> I
-    
-    E --> J[Streamlit Master UI Dashboard]
-    F --> J
-    G --> J
-    H --> J
-    I --> J
+graph LR
+    A[Upload PDF] --> B[Extract text and metadata]
+    B --> C[Chunk and index clauses]
+    C --> D[Retrieve relevant passages]
+    D --> E[Score contract risks]
+    E --> F[Plain-English review]
+    F --> G[Notes, flags, and redlines]
 ```
 
----
+The backend uses FastAPI and a retrieval pipeline built around ChromaDB and LangChain-compatible retrievers. The React frontend is built with Vite and is served by the same FastAPI process in production, so the deployed application has one public URL for both the interface and API.
 
-## 💎 Commercial SaaS Monetization Plan
+## Technology
 
-| Feature / Tier | 🆓 Free Starter | ⭐ Pro Plan ($19/mo) | 🏢 Enterprise ($49/mo) |
-|---|---|---|---|
-| Contract Reviews | 3 / Month | **Unlimited** | **Unlimited** |
-| Retrievers Included | Similarity Search | **All 5 Retrievers + Compare Lab** | **All 5 Retrievers** |
-| Document Upload | Single PDF | **Batch Multi-PDF Upload** | **Batch Multi-PDF Upload** |
-| Report Export | ❌ | **Export PDF / Word Audit Reports** | **Export PDF / Word Reports** |
-| Risk Index Score | ❌ | **1-100 Automated Legal Risk Index** | **1-100 Legal Risk Index** |
-| Infrastructure | Shared | Shared | **Dedicated Vector Cluster** |
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite, TypeScript, Tailwind CSS, Lucide icons |
+| Backend | Python 3.11+, FastAPI, Uvicorn |
+| Retrieval | ChromaDB, LangChain retrievers, similarity and MMR modes |
+| Document processing | `pdfplumber`, `pypdf`, and generated sample contracts |
+| AI integrations | OpenAI-compatible analysis with local embedding fallback |
+| Deployment | Railway single-service deployment; frontend bundle embedded in the repository |
+| License | MIT |
 
----
+## Run locally
 
-## ⚡ Local Setup Guide
+### 1. Clone and create an environment
 
-### 1. Clone Repository
 ```bash
 git clone https://github.com/ShaniOnGitHub/ContractClaw.git
 cd ContractClaw
-```
-
-### 2. Environment Setup & Dependencies
-```bash
-python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
-
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
-### 3. API Keys Configuration
-Create a `.env` file in the root directory:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-GROQ_API_KEY=your_groq_api_key_here
-```
-*(ContractClaw automatically falls back to local HuggingFace embeddings `all-MiniLM-L6-v2` if no OpenAI key is present!)*
+### 2. Configure environment variables
 
-### 4. Run Sample Generator & Launch App
+Copy `.env.example` to `.env` and provide the keys needed for your environment. The application can use local Hugging Face embeddings when an OpenAI embedding configuration is unavailable.
+
+```bash
+cp .env.example .env
+```
+
+### 3. Build the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+### 4. Start the combined application
+
+```bash
+python main.py
+```
+
+Open `http://localhost:8000` in a browser.
+
+## Tests
+
+The focused CI checks generate sample contracts and run the ingestion, similarity retriever, and MMR retriever tests on Python 3.11:
+
 ```bash
 python generate_samples.py
-streamlit run app.py
+pytest -q tests/test_ingestion.py tests/test_similarity_retriever.py tests/test_mmr_retriever.py
 ```
 
----
+The repository also contains the broader regression suite under `tests/`. To run it locally:
 
-## 🐳 Docker Deployment
-
-To build and run ContractClaw using Docker:
 ```bash
-docker build -t contractclaw .
-docker run -p 8501:8501 --env-file .env contractclaw
-```
-Navigate to `http://localhost:8501` in your browser.
-
----
-
-## ☁️ Streamlit Community Cloud Deployment
-
-1. Fork or push this repository to your GitHub account (`https://github.com/ShaniOnGitHub/ContractClaw`).
-2. Log into [share.streamlit.io](https://share.streamlit.io/).
-3. Click **New App** $\rightarrow$ Select repository `ContractClaw`, branch `main`, and main file path `app.py`.
-4. In Advanced Settings $\rightarrow$ Add `OPENAI_API_KEY` and `GROQ_API_KEY` under **Secrets**.
-5. Click **Deploy!**
-
----
-
-## 🧪 Unified Test Suite
-
-To run all automated retriever tests:
-```bash
-python tests/run_all.py
+pytest -q
 ```
 
----
+## Deployment
 
-## 📜 License
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+Railway deploys the `main` branch using the repository’s `railway.json` configuration. The service builds the React frontend and starts FastAPI through `main.py`. The production URL is [contractclaw.up.railway.app](https://contractclaw.up.railway.app).
+
+For deployment configuration details, see [`HOSTING.md`](HOSTING.md). For contribution or issue reports, use the repository’s [Issues page](https://github.com/ShaniOnGitHub/ContractClaw/issues).
+
+## Repository layout
+
+```text
+frontend/       React application and production bundle
+services/       Authentication, analysis, and application services
+retrievers/     Retrieval strategies used by contract analysis
+tests/          Regression and feature tests
+api.py          FastAPI routes and frontend serving
+main.py         Portable production entry point
+generate_samples.py  Local and CI sample-contract generator
+railway.json    Railway build and deployment configuration
+```
+
+## License
+
+ContractClaw is distributed under the MIT License. See [`LICENSE`](LICENSE).
