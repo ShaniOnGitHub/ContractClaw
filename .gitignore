@@ -2,6 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 venv/
 .venv/
 env/
@@ -17,18 +22,26 @@ chroma_data/
 .vscode/
 .idea/
 
-# OS
+# OS and editor files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # Database & Runtime Uploads
 *.db
 *.db-wal
 *.db-shm
 uploads/
+*.log
+*.tmp
 
 # Node
 node_modules/
 dist/
 build/
+
+# Local tooling
+.vercel/
+.turbo/
 
